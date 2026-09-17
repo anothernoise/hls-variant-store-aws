@@ -83,7 +83,7 @@ resource "aws_rds_cluster" "aurora" {
   count                  = var.enable_postgres && var.postgres_deployment_mode == "aurora_serverless" ? 1 : 0
   cluster_identifier     = "${var.project_name}-aurora-${var.environment}"
   engine                 = "aurora-postgresql"
-  engine_version         = "16.1"
+  engine_version         = "16.8"
   database_name          = var.postgres_db_name
   master_username        = var.postgres_admin_username
   master_password        = random_password.postgres_master[0].result
