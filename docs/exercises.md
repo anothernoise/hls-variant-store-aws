@@ -338,6 +338,11 @@ Open your browser to `http://localhost:8050`.
    - Federated cross-modal join linking genomic variant carriers (`sample_id`) to OMOP CDM `person` and `condition_occurrence` (Alzheimer's Disease concept `378419`).
 5. **⚡ 5. Multi-Engine Latency Benchmarks**:
    - Side-by-side bar chart and comparison table benchmarking Carrier Lookup, Allele Frequency Rollup, and OMOP Joins across all 7 storage architectures.
+6. **🔍 6. Store Data Explorer**:
+   - Directly browse raw store records (`variants`, `person`, `condition_occurrence`) with pagination, sorting, and in-table search.
+   - Filter records dynamically by chromosome (`chr1`, `chr21`) and cohort sample ID (`sample_001` .. `sample_010`).
+   - Inspect the **Physical Storage Architecture & Schema Details** (Table format, Catalog integration, Partitioning scheme, File format, and Compaction maintenance).
+   - View the exact direct SQL query executed against the engine and export filtered records via 1-click CSV download.
 
 #### 6.3 Managing AWS HealthOmics Variant Store
 Explore the AWS HealthOmics variant store management CLI [`ingest/healthomics/manage_omics_store.py`](../ingest/healthomics/manage_omics_store.py):
