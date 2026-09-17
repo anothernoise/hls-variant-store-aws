@@ -11,6 +11,7 @@ The matrix below evaluates candidate population genomic storage options across a
 | Option | Primary Fit / Best For | Scale Envelope | Ingestion & $N+1$ Write Pattern | Read Pattern & Query SLA | SQL / Lakehouse Interoperability | Well-Architected Pillars (Perf / Cost / Ops) | Solution Complexity |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Amazon S3 Tables (Iceberg)** | **Managed enterprise genomic lakehouse & SQL analytics** | **Exabyte-scale** (>100M calls, 100K+ WGS) | Append-only partitioned Parquet + automated Iceberg manifest commit ($O(1)$ write amplification) | Coordinate partition pruning + min/max file stats; sub-second to low-second SQL | **Native Iceberg REST + Glue Federated Catalog** (Athena, EMR Spark, Trino) | **Perf: High**<br>**Cost: Optimal**<br>**Ops: Low** (Zero-ops compaction) | **Low–Medium** |
+| **AWS HealthOmics Variant Store** | **Turnkey fully managed bioinformatics VCF ingestion** | **Petabyte-scale** (Tens of thousands of WGS samples) | Asynchronous managed VCF import jobs with automatic GRCh38 normalization | Managed Glue Data Catalog table (`omics_*`); low-second Athena SQL (~900ms) | **Proprietary managed format**; queryable via Amazon Athena; lacks open Iceberg/Delta portability | **Perf: High**<br>**Cost: Higher** ($0.04/GB-mo + $0.005/GB import)<br>**Ops: Lowest** (No schema or compaction management) | **Low** |
 | **Custom S3 + Apache Iceberg** | **Portable multi-cloud lakehouse & custom partitioning** | **Exabyte-scale** (>100M calls, 100K+ WGS) | Batch/append Parquet; explicit snapshot commit via Glue Catalog ($O(1)$ write amplification) | Columnar projection + chromosome partitioning; sub-second cohort lookups | **Open Iceberg Format** (Athena, Starburst, DuckDB, Spark, Databricks) | **Perf: High**<br>**Cost: Optimal**<br>**Ops: Medium** (Requires manual/scheduled compaction) | **Medium** |
 | **Delta Lake on S3** | **Databricks-centric enterprise Lakehouse platforms** | **Exabyte-scale** (>100M calls, 100K+ WGS) | ACID append/merge; Parquet + `_delta_log` JSON actions ($O(1)$ commit latency) | Vectorized columnar scan + Liquid Clustering / Z-Order data skipping; sub-second SQL | **Excellent** (Databricks SQL, Photon, Apache Spark, Athena Delta connector) | **Perf: Very High**<br>**Cost: Medium** (Compute license)<br>**Ops: Medium** | **Medium** |
 | **Hail VDS on S3** | **Population genetics research, GWAS, LD pruning, PCA** | **Multi-Petabyte** (UK Biobank 500K scale) | Split dataset (Variant Data sparse matrix + Reference Data blocks); batch append | Distributed Spark RDD/MatrixTable parallel scans; batch execution (minutes–hours) | **Weak** (Hail Python DSL over Apache Spark; non-standard SQL) | **Perf: High (GWAS/Batch)**<br>**Cost: Medium–High**<br>**Ops: High** (Spark cluster ops) | **Medium–High** |
@@ -37,11 +38,13 @@ flowchart TD
     R_POSTGRES -->|Predictable steady baseline| A_RDS["Amazon RDS PostgreSQL<br/>• db.t4g fixed instance<br/>• Low-cost dev environment"]
     D_OLTP -->|Massive Genomic Matrix<br/>Locus point seek| A_CH["ClickHouse / TileDB-VCF<br/>• High-concurrency point seek<br/>• Sparse coordinate tiling"]
 
-    Q_SCALE -->|Population Analytics / Cohorts<br/>Millions to Billions of variants| D_ECO{"What is the primary analytics ecosystem?"}
+    Q_SCALE -->|Population Analytics / Cohorts<br/>Millions to Billions of variants| D_ECO{"What is the engineering focus & open lakehouse strategy?"}
     
-    D_ECO -->|AWS Serverless Lakehouse<br/>Zero-Ops Compaction| A_S3T["Amazon S3 Tables (Iceberg)<br/>• Automated bin-pack compaction<br/>• Native Athena/Spark SQL<br/>• O(1) N+1 ingest"]
+    D_ECO -->|Turnkey AWS Managed VCF Ingest<br/>No Schema or ETL engineering| A_OMICS["AWS HealthOmics Variant Store<br/>• Automatic VCF parsing & GRCh38 normalization<br/>• Managed Athena Glue catalog integration<br/>• Higher storage cost ($0.04/GB-mo)"]
+
+    D_ECO -->|Open Standard Lakehouse<br/>Zero-Ops Compaction & Lowest Cost| A_S3T["Amazon S3 Tables (Iceberg)<br/>• Automated bin-pack compaction<br/>• Native Athena/Spark SQL<br/>• Standard S3 pricing ($0.023/GB)<br/>• No vendor lock-in"]
     
-    D_ECO -->|Multi-Cloud / Portable<br/>Open-Source Governance| A_CUST["Custom S3 + Apache Iceberg<br/>• Glue Catalog integration<br/>• Custom partition transforms<br/>• Multi-engine portability"]
+    D_ECO -->|Multi-Cloud / Portable<br/>Custom Partition Transforms| A_CUST["Custom S3 + Apache Iceberg<br/>• Glue Catalog integration<br/>• Custom partition transforms<br/>• Multi-engine portability"]
     
     D_ECO -->|Databricks Unified Platform<br/>Photon / Delta Sharing| A_DELTA["Delta Lake on S3<br/>• Liquid Clustering / Z-Order<br/>• ACID _delta_log commits<br/>• High-throughput Photon queries"]
     
@@ -50,7 +53,7 @@ flowchart TD
     classDef primary fill:#1d70b8,stroke:#0b0c0c,color:#ffffff,stroke-width:2px;
     classDef opt fill:#00703c,stroke:#0b0c0c,color:#ffffff,stroke-width:2px;
     class A_S3T,A_CUST,A_DELTA primary;
-    class A_AURORA,A_RDS,A_CH,A_HAIL opt;
+    class A_AURORA,A_RDS,A_CH,A_HAIL,A_OMICS opt;
 ```
 
 ---

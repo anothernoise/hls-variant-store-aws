@@ -296,6 +296,83 @@ Enforce strict Protected Health Information (PHI) access controls using **AWS La
 
 ---
 
+## Exercise 6: Interactive Population Genetics & Multi-Engine Exploration with Plotly Dash
+
+### Objective
+Launch and interact with the **Plotly Dash Genomic Explorer** web application (`app/app.py`), dynamically switching across 7 different storage backends, comparing analytical query latencies, and inspecting AWS HealthOmics Variant Store lifecycle management.
+
+### Architectural Context
+Solution Architects and bioinformatics teams frequently need to present analytical results and demonstrate query SLAs to clinical stakeholders and data platform engineers. The Dash web application provides an interactive, production-grade interface that connects dynamically to live Athena and database backends with automatic fallback to deterministic synthetic data for offline training.
+
+### Step-by-Step Instructions
+
+#### 6.1 Install App Dependencies & Launch Dash
+Ensure required Python packages are installed:
+```bash
+pip install -r app/requirements.txt
+```
+
+Launch the Dash application:
+```bash
+python3 app/app.py
+```
+*Output*:
+```text
+Dash is running on http://0.0.0.0:8050/
+ * Serving Flask app 'app'
+ * Debug mode: off
+```
+
+Open your browser to `http://localhost:8050`.
+
+#### 6.2 Explore the 5 Interactive Genetic Analysis Tabs
+1. **📊 1. Cohort Allele Frequency**:
+   - Inspect cohort-wide alternate carrier counts and computed carrier frequencies for *APP*, *SOD1*, and *BRCA1* loci.
+   - Switch the top dropdown from **Amazon S3 Tables** to **Amazon Aurora PostgreSQL (Serverless v2)** and observe real-time SLA metrics update from ~800ms down to sub-100ms.
+2. **🧬 2. Pathogenic Carrier Discovery**:
+   - Target locus: `chr21:25891796 A>G` (*APP* Pathogenic Missense rs63750066).
+   - Review sample genotypes (`0/1` vs `1/1`), sequencing read depth (`DP`), genotype quality (`GQ`), and allelic balance (`AD`).
+3. **📈 3. Gene Burden Rollup**:
+   - Interactive bar chart showing per-sample cumulative mutation burden for the *APP* gene locus.
+4. **🏥 4. Multimodal OMOP Clinical Join**:
+   - Federated cross-modal join linking genomic variant carriers (`sample_id`) to OMOP CDM `person` and `condition_occurrence` (Alzheimer's Disease concept `378419`).
+5. **⚡ 5. Multi-Engine Latency Benchmarks**:
+   - Side-by-side bar chart and comparison table benchmarking Carrier Lookup, Allele Frequency Rollup, and OMOP Joins across all 7 storage architectures.
+
+#### 6.3 Managing AWS HealthOmics Variant Store
+Explore the AWS HealthOmics variant store management CLI [`ingest/healthomics/manage_omics_store.py`](../ingest/healthomics/manage_omics_store.py):
+
+```bash
+# 1. List active HealthOmics variant stores in current region
+python3 ingest/healthomics/manage_omics_store.py --action list
+
+# 2. View lifecycle status of a variant store
+python3 ingest/healthomics/manage_omics_store.py --action status --store-name hls_cohort_variant_store
+
+# 3. Create a managed HealthOmics Reference Store (GRCh38) and Variant Store
+python3 ingest/healthomics/manage_omics_store.py --action create-store \
+    --store-name hls_cohort_variant_store \
+    --kms-key-arn $(terraform -chdir=deploy/terraform output -raw kms_key_arn)
+
+# 4. Asynchronously import cohort VCFs into the HealthOmics Variant Store
+python3 ingest/healthomics/manage_omics_store.py --action import-vcf \
+    --store-name hls_cohort_variant_store \
+    --role-arn $(terraform -chdir=deploy/terraform output -raw healthomics_service_role_arn) \
+    --vcf-s3-uri "s3://$(terraform -chdir=deploy/terraform output -raw custom_iceberg_bucket_name)/samples/cohort_10samples.vcf"
+```
+
+#### 6.4 Solution Architect Analysis: HealthOmics vs. Amazon S3 Tables
+| Architectural Metric | AWS HealthOmics Variant Store | Amazon S3 Tables (Iceberg) |
+| :--- | :--- | :--- |
+| **Data Format** | AWS Proprietary Managed Variant Store | Open Apache Iceberg Standard |
+| **VCF Ingestion** | Turnkey managed async import API | Partitioned Parquet / Athena CTAS |
+| **Multi-Engine Portability** | Athena only (via Glue Catalog) | Athena, EMR Spark, Trino, Snowflake, DuckDB |
+| **Storage Pricing** | **\$0.040 / GB-month** | **\$0.023 / GB-month** (Standard S3) |
+| **Ingestion Fee** | **\$0.005 / GB processed** | Standard S3 PUT / Athena scan |
+| **Recommendation** | Ideal for teams without data engineering capacity needing instant VCF parsing. | Strategic choice for enterprise lakehouses requiring open standards, lowest TCO, and zero lock-in. |
+
+---
+
 ## Bootcamp Troubleshooting & Common Pitfalls
 
 | Issue | Root Cause | Solution |

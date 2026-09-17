@@ -45,6 +45,7 @@ Full step-by-step instructions are available in the **[Lab Exercises Guide](docs
 3. **Benchmark**: Measure latency, data scanned, Athena costs, and the $N+1$ incremental ingest speedup.
 4. **Join**: Correlate genomic variant carriers to synthetic [OMOP](https://github.com/anothernoise/hls-sa) clinical conditions without data movement.
 5. **Govern**: Enforce AWS Lake Formation column projection filters and KMS Customer Managed Keys.
+6. **Explore & Visualize**: Interactive multi-engine exploration web app (`app/app.py`) with Plotly Dash, supporting dynamic backend switching across 7 storage architectures.
 
 ## Architecture Decision Records (ADRs)
 
@@ -58,18 +59,23 @@ All core technical decisions and trade-offs are documented in [`docs/adr/`](docs
 
 ```
 .
-├── deploy/terraform/         # Terraform IaC (S3 Tables, Custom Iceberg, Athena, OMOP, KMS, Lake Formation)
+├── app/                      # Interactive Plotly Dash multi-engine explorer web app
+│   ├── app.py                # Dash UI layout, multi-engine dropdown & 5 discovery tabs
+│   ├── backend.py            # Data access abstraction layer (Athena + deterministic fallback)
+│   └── requirements.txt      # Web app Python dependencies
+├── deploy/terraform/         # Terraform IaC (S3 Tables, Iceberg, Athena, RDS, Aurora, HealthOmics, KMS)
 ├── docs/
 │   ├── architecture.md       # Solution design, trade-offs, and NFRs
-│   ├── summary.md            # SA evaluation matrix, access patterns, Well-Architected pillars
-│   ├── exercises.md          # Step-by-step lab exercise guide
+│   ├── summary.md            # SA evaluation matrix, decision tree, Well-Architected pillars
+│   ├── exercises.md          # Step-by-step lab exercise guide (Exercises 1 through 6)
 │   └── adr/                  # Architecture Decision Records (ADR-001 through ADR-004)
 ├── samples/
 │   ├── generate_synthetic_data.py # Deterministic multi-sample gVCF & OMOP generator
 │   └── data/                 # Generated synthetic VCF and OMOP CSV datasets
 ├── ingest/
 │   ├── s3tables/             # Ingestion loader for Amazon S3 Tables
-│   └── custom_iceberg/       # Partition-aware loader for Custom S3 + Iceberg
+│   ├── custom_iceberg/       # Partition-aware loader for Custom S3 + Iceberg
+│   └── healthomics/          # Lifecycle & async VCF import manager for AWS HealthOmics
 ├── queries/
 │   ├── s3tables/             # Athena Presto/Trino SQL queries for S3 Tables
 │   └── custom_iceberg/       # Athena Presto/Trino SQL queries for Custom Iceberg
@@ -96,13 +102,20 @@ python3 samples/generate_synthetic_data.py
 python3 scripts/validate_exercises.py --local-mode
 ```
 
-### 3. Run Unit Tests & Local Benchmarks
+### 3. Launch Interactive Plotly Dash Multi-Engine Explorer
+```bash
+pip install -r app/requirements.txt
+python3 app/app.py
+# Open http://localhost:8050 to dynamically switch between all 7 backend storage engines
+```
+
+### 4. Run Unit Tests & Local Benchmarks
 ```bash
 python3 -m unittest discover tests
 python3 benchmarks/benchmark_runner.py --cohort-size 10
 ```
 
-### 4. Deploy Infrastructure (AWS)
+### 5. Deploy Infrastructure (AWS)
 ```bash
 cd deploy/terraform
 cp terraform.tfvars.example terraform.tfvars
@@ -111,7 +124,7 @@ terraform plan
 terraform apply
 ```
 
-### 5. Validate Live Deployment (AWS Athena & KMS)
+### 6. Validate Live Deployment (AWS Athena & KMS)
 ```bash
 python3 scripts/validate_exercises.py --aws-mode
 ```

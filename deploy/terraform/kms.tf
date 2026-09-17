@@ -51,6 +51,25 @@ resource "aws_kms_key" "genomics" {
             "aws:SourceAccount" = local.account_id
           }
         }
+      },
+      {
+        Sid    = "AllowHealthOmicsServiceAccess"
+        Effect = "Allow"
+        Principal = {
+          Service = "omics.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey",
+          "kms:CreateGrant"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = local.account_id
+          }
+        }
       }
     ]
   })

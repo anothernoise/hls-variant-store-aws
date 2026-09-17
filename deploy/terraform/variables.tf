@@ -85,3 +85,16 @@ variable "postgres_admin_username" {
   default     = "genomics_admin"
 }
 
+variable "enable_healthomics" {
+  type        = bool
+  description = "Enable AWS HealthOmics reference store and variant store resources"
+  default     = false
+}
+
+variable "healthomics_reference_arn" {
+  type        = string
+  description = "Optional ARN of an existing AWS HealthOmics Reference (e.g. GRCh38/hg38). If null, reference store is created."
+  default     = null
+}
+
+

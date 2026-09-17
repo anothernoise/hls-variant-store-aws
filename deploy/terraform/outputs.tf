@@ -122,3 +122,16 @@ output "postgres_mode" {
   value       = var.enable_postgres ? var.postgres_deployment_mode : "disabled"
 }
 
+# AWS HealthOmics Outputs
+output "healthomics_import_role_arn" {
+  description = "IAM Role ARN for AWS HealthOmics import jobs"
+  value       = var.enable_healthomics ? aws_iam_role.omics_import[0].arn : null
+}
+
+output "healthomics_helper_command" {
+  description = "CLI command to manage HealthOmics Variant Store lifecycle"
+  value       = "python3 ingest/healthomics/manage_omics_store.py --action status"
+}
+
+
+
