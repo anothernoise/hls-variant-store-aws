@@ -19,6 +19,7 @@ if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
 from backend import VariantStoreBackend
+from api_client import VariantStoreApiClient
 
 # Initialize Dash App with modern FLATLY theme
 app = dash.Dash(
@@ -29,6 +30,7 @@ app = dash.Dash(
 )
 
 backend = VariantStoreBackend()
+api_client = VariantStoreApiClient()
 
 # -----------------------------------------------------------------------------
 # Top Navigation Bar (Header & Branding)
@@ -281,7 +283,15 @@ def render_tab_content(active_tab, engine, is_online):
     )
 
     if active_tab == "tab-af":
-        df, meta = backend.get_allele_frequencies(engine, offline=offline)
+        df, meta = api_client.get_allele_frequencies(engine, offline=offline)
+        if meta.get("error"):
+            return dbc.Alert([
+                html.H5(f"Engine Status: {meta.get('status', 'Unavailable')}", className="alert-heading"),
+                html.P(meta["error"]),
+                html.Hr(),
+                html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
+            ], color="warning", className="shadow-sm border-0")
+
         fig = px.bar(
             df,
             x="start",
@@ -314,7 +324,15 @@ def render_tab_content(active_tab, engine, is_online):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-carriers":
-        df, meta = backend.get_pathogenic_carriers(engine, offline=offline)
+        df, meta = api_client.get_pathogenic_carriers(engine, offline=offline)
+        if meta.get("error"):
+            return dbc.Alert([
+                html.H5(f"Engine Status: {meta.get('status', 'Unavailable')}", className="alert-heading"),
+                html.P(meta["error"]),
+                html.Hr(),
+                html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
+            ], color="warning", className="shadow-sm border-0")
+
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Pathogenic Mutation Carrier Discovery (APP rs63750066)", className="fw-bold text-danger me-2"),
@@ -339,7 +357,15 @@ def render_tab_content(active_tab, engine, is_online):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-burden":
-        df, meta = backend.get_gene_burden(engine, offline=offline)
+        df, meta = api_client.get_gene_burden(engine, offline=offline)
+        if meta.get("error"):
+            return dbc.Alert([
+                html.H5(f"Engine Status: {meta.get('status', 'Unavailable')}", className="alert-heading"),
+                html.P(meta["error"]),
+                html.Hr(),
+                html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
+            ], color="warning", className="shadow-sm border-0")
+
         fig = px.bar(
             df,
             x="sample_id",
@@ -370,7 +396,15 @@ def render_tab_content(active_tab, engine, is_online):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-omop":
-        df, meta = backend.get_omop_phenotype_join(engine, offline=offline)
+        df, meta = api_client.get_omop_phenotype_join(engine, offline=offline)
+        if meta.get("error"):
+            return dbc.Alert([
+                html.H5(f"Engine Status: {meta.get('status', 'Unavailable')}", className="alert-heading"),
+                html.P(meta["error"]),
+                html.Hr(),
+                html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
+            ], color="warning", className="shadow-sm border-0")
+
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Multimodal Genotype ↔ OMOP CDM Phenotype Federation", className="fw-bold text-success me-2"),
@@ -391,15 +425,25 @@ def render_tab_content(active_tab, engine, is_online):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-benchmarks":
-        bench_df = pd.DataFrame([
-            {"Engine": "Amazon S3 Tables", "Carrier Lookup (ms)": 385, "Allele Freq (ms)": 462, "OMOP Join (ms)": 682, "Cost/Query": "$0.000063"},
-            {"Engine": "Custom S3 + Iceberg", "Carrier Lookup (ms)": 451, "Allele Freq (ms)": 528, "OMOP Join (ms)": 781, "Cost/Query": "$0.000063"},
-            {"Engine": "Delta Lake on S3", "Carrier Lookup (ms)": 418, "Allele Freq (ms)": 495, "OMOP Join (ms)": 726, "Cost/Query": "$0.000063"},
-            {"Engine": "Aurora PostgreSQL Serverless", "Carrier Lookup (ms)": 49, "Allele Freq (ms)": 418, "OMOP Join (ms)": 93, "Cost/Query": "$0.000010"},
-            {"Engine": "RDS PostgreSQL (t4g)", "Carrier Lookup (ms)": 71, "Allele Freq (ms)": 572, "OMOP Join (ms)": 143, "Cost/Query": "$0.000010"},
-            {"Engine": "Hail VDS (Spark)", "Carrier Lookup (ms)": 1078, "Allele Freq (ms)": 1375, "OMOP Join (ms)": 2310, "Cost/Query": "$0.000079"},
-            {"Engine": "AWS HealthOmics", "Carrier Lookup (ms)": 480, "Allele Freq (ms)": 590, "OMOP Join (ms)": 890, "Cost/Query": "$0.000085"},
-        ])
+        bench_data = api_client.get_benchmarks()
+        if bench_data:
+            bench_df = pd.DataFrame(bench_data).rename(columns={
+                "engine": "Engine",
+                "carrier_lookup_ms": "Carrier Lookup (ms)",
+                "allele_freq_ms": "Allele Freq (ms)",
+                "omop_join_ms": "OMOP Join (ms)",
+                "cost_per_query": "Cost/Query"
+            })
+        else:
+            bench_df = pd.DataFrame([
+                {"Engine": "Amazon S3 Tables", "Carrier Lookup (ms)": 385, "Allele Freq (ms)": 462, "OMOP Join (ms)": 682, "Cost/Query": "$0.000063"},
+                {"Engine": "Custom S3 + Iceberg", "Carrier Lookup (ms)": 451, "Allele Freq (ms)": 528, "OMOP Join (ms)": 781, "Cost/Query": "$0.000063"},
+                {"Engine": "Delta Lake on S3", "Carrier Lookup (ms)": 418, "Allele Freq (ms)": 495, "OMOP Join (ms)": 726, "Cost/Query": "$0.000063"},
+                {"Engine": "Aurora PostgreSQL Serverless", "Carrier Lookup (ms)": 49, "Allele Freq (ms)": 418, "OMOP Join (ms)": 93, "Cost/Query": "$0.000010"},
+                {"Engine": "RDS PostgreSQL (t4g)", "Carrier Lookup (ms)": 71, "Allele Freq (ms)": 572, "OMOP Join (ms)": 143, "Cost/Query": "$0.000010"},
+                {"Engine": "Hail VDS (Spark)", "Carrier Lookup (ms)": 1078, "Allele Freq (ms)": 1375, "OMOP Join (ms)": 2310, "Cost/Query": "$0.000079"},
+                {"Engine": "AWS HealthOmics", "Carrier Lookup (ms)": 480, "Allele Freq (ms)": 590, "OMOP Join (ms)": 890, "Cost/Query": "$0.000085"},
+            ])
         fig = px.bar(
             bench_df,
             x="Engine",
@@ -500,7 +544,7 @@ def render_tab_content(active_tab, engine, is_online):
 def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_online):
     offline = not is_online
     meta = backend.get_store_metadata(engine)
-    df, telemetry, sql = backend.get_raw_store_data(
+    df, telemetry, sql = api_client.get_raw_store_data(
         engine=engine,
         table_name=table_name or "variants",
         chromosome=chromosome or "All",

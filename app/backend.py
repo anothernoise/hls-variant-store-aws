@@ -170,110 +170,256 @@ class VariantStoreBackend:
                 {"reference_name": "chr1", "start": "100120", "reference_bases": "T", "alternate_bases": "C", "total_cohort_samples": "10", "alt_carrier_count": "2", "carrier_frequency": "0.2000", "gene_symbol": "BRCA1", "clinical_significance": "BENIGN"},
             ])
 
+    def build_engine_sql(self, engine: str, query_kind: str = "af", gene: str = "APP") -> str:
+        """Generates dialect-accurate SQL targeting the specific backend engine and database."""
+        config = self.get_engine_config(engine)
+        db_name = config.get("database", "genomics_custom_iceberg")
+        tbl_name = config.get("table_name", "variants")
+
+        is_postgres = "PostgreSQL" in engine or "postgres" in db_name.lower()
+
+        if is_postgres:
+            if query_kind == "af":
+                return (
+                    "SELECT reference_name, start, reference_bases, alternate_bases, "
+                    "COUNT(DISTINCT sample_id) AS total_cohort_samples, "
+                    "COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS alt_carrier_count, "
+                    "ROUND(CAST(COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS numeric) / "
+                    "CAST(COUNT(DISTINCT sample_id) AS numeric), 4) AS carrier_frequency, "
+                    "attributes->>'gene' AS gene_symbol, "
+                    "attributes->>'clnsig' AS clinical_significance "
+                    "FROM variants "
+                    "GROUP BY reference_name, start, reference_bases, alternate_bases, "
+                    "attributes->>'gene', attributes->>'clnsig' "
+                    "ORDER BY alt_carrier_count DESC LIMIT 10;"
+                )
+            elif query_kind == "carriers":
+                return (
+                    "SELECT sample_id, reference_name, start, reference_bases, alternate_bases, "
+                    "genotype, dp, gq, allele_depth, "
+                    "attributes->>'gene' AS gene_symbol, "
+                    "attributes->>'clnsig' AS clinical_significance "
+                    "FROM variants "
+                    "WHERE reference_name = 'chr21' AND start = 25891796 AND genotype IN ('0/1', '1/1');"
+                )
+            elif query_kind == "burden":
+                return (
+                    f"SELECT v.sample_id, v.attributes->>'gene' AS gene_symbol, "
+                    f"COUNT(DISTINCT v.start) AS distinct_variant_sites, "
+                    f"SUM(CASE WHEN v.genotype = '0/1' THEN 1 WHEN v.genotype = '1/1' THEN 2 ELSE 0 END) AS total_alt_allele_burden "
+                    f"FROM variants v "
+                    f"WHERE v.reference_name = 'chr21' AND v.genotype IN ('0/1', '1/1') "
+                    f"AND v.attributes->>'gene' = '{gene}' "
+                    f"GROUP BY v.sample_id, v.attributes->>'gene';"
+                )
+            else:  # omop
+                return (
+                    "WITH target_carriers AS ( "
+                    "  SELECT v.sample_id, v.reference_name, v.start, v.genotype, "
+                    "         v.attributes->>'gene' AS gene_symbol, "
+                    "         v.attributes->>'clnsig' AS clinical_significance "
+                    "  FROM variants v "
+                    "  WHERE v.reference_name = 'chr21' AND v.start = 25891796 AND v.genotype IN ('0/1', '1/1') "
+                    ") "
+                    "SELECT p.person_id, p.sample_id, p.year_of_birth, tc.gene_symbol, tc.clinical_significance, tc.genotype, "
+                    "       co.condition_concept_id, co.condition_start_date "
+                    "FROM person p "
+                    "INNER JOIN target_carriers tc ON p.sample_id = tc.sample_id "
+                    "LEFT JOIN condition_occurrence co ON p.person_id = co.person_id;"
+                )
+
+        # Presto/Trino (Amazon Athena) engines
+        if "/" in db_name:
+            table_ref = f'"{db_name}".{tbl_name}'
+        else:
+            table_ref = f"{db_name}.{tbl_name}"
+
+        if query_kind == "af":
+            return (
+                "SELECT reference_name, start, reference_bases, alternate_bases, "
+                "COUNT(DISTINCT sample_id) AS total_cohort_samples, "
+                "COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS alt_carrier_count, "
+                "ROUND(CAST(COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS double) / "
+                "CAST(COUNT(DISTINCT sample_id) AS double), 4) AS carrier_frequency, "
+                "json_extract_scalar(attributes, '$.gene') AS gene_symbol, "
+                "json_extract_scalar(attributes, '$.clnsig') AS clinical_significance "
+                f"FROM {table_ref} "
+                "GROUP BY reference_name, start, reference_bases, alternate_bases, "
+                "json_extract_scalar(attributes, '$.gene'), json_extract_scalar(attributes, '$.clnsig') "
+                "ORDER BY alt_carrier_count DESC LIMIT 10;"
+            )
+        elif query_kind == "carriers":
+            return (
+                f"SELECT sample_id, reference_name, start, reference_bases, alternate_bases, "
+                f"genotype, dp, gq, allele_depth, "
+                f"json_extract_scalar(attributes, '$.gene') AS gene_symbol, "
+                f"json_extract_scalar(attributes, '$.clnsig') AS clinical_significance "
+                f"FROM {table_ref} "
+                f"WHERE reference_name = 'chr21' AND start = 25891796 AND genotype IN ('0/1', '1/1');"
+            )
+        elif query_kind == "burden":
+            return (
+                f"SELECT v.sample_id, json_extract_scalar(v.attributes, '$.gene') AS gene_symbol, "
+                f"COUNT(DISTINCT v.start) AS distinct_variant_sites, "
+                f"SUM(CASE WHEN v.genotype = '0/1' THEN 1 WHEN v.genotype = '1/1' THEN 2 ELSE 0 END) AS total_alt_allele_burden "
+                f"FROM {table_ref} v "
+                f"WHERE v.reference_name = 'chr21' AND v.genotype IN ('0/1', '1/1') "
+                f"AND json_extract_scalar(v.attributes, '$.gene') = '{gene}' "
+                f"GROUP BY v.sample_id, json_extract_scalar(v.attributes, '$.gene');"
+            )
+        else:  # omop
+            return (
+                f"WITH target_carriers AS ( "
+                f"  SELECT v.sample_id, v.reference_name, v.start, v.genotype, "
+                f"         json_extract_scalar(v.attributes, '$.gene') AS gene_symbol, "
+                f"         json_extract_scalar(v.attributes, '$.clnsig') AS clinical_significance "
+                f"  FROM {table_ref} v "
+                f"  WHERE v.reference_name = 'chr21' AND v.start = 25891796 AND v.genotype IN ('0/1', '1/1') "
+                f") "
+                f"SELECT p.person_id, p.sample_id, p.year_of_birth, tc.gene_symbol, tc.clinical_significance, tc.genotype, "
+                f"       co.condition_concept_id, co.condition_start_date "
+                f"FROM clinical_omop.person p "
+                f"INNER JOIN target_carriers tc ON p.sample_id = tc.sample_id "
+                f"LEFT JOIN clinical_omop.condition_occurrence co ON p.person_id = co.person_id;"
+            )
+
     def get_allele_frequencies(self, engine: str, offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """Fetch allele frequency distributions for the chosen backend."""
-        sql = (
-            "SELECT reference_name, start, reference_bases, alternate_bases, "
-            "COUNT(DISTINCT sample_id) AS total_cohort_samples, "
-            "COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS alt_carrier_count, "
-            "ROUND(CAST(COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS double) / "
-            "CAST(COUNT(DISTINCT sample_id) AS double), 4) AS carrier_frequency, "
-            "json_extract_scalar(attributes, '$.gene') AS gene_symbol, "
-            "json_extract_scalar(attributes, '$.clnsig') AS clinical_significance "
-            "FROM genomics_custom_iceberg.variants "
-            "GROUP BY reference_name, start, reference_bases, alternate_bases, "
-            "json_extract_scalar(attributes, '$.gene'), json_extract_scalar(attributes, '$.clnsig') "
-            "ORDER BY alt_carrier_count DESC LIMIT 10;"
+        """Fetch allele frequency distributions targeting the chosen backend engine."""
+        is_offline = self.offline_mode if offline is None else offline
+        sql = self.build_engine_sql(engine, query_kind="af")
+        config = self.get_engine_config(engine)
+        db_name = config.get("database", "genomics_custom_iceberg")
+
+        if not is_offline and "RDS PostgreSQL" in engine:
+            return pd.DataFrame(), {
+                "engine": engine,
+                "latency_ms": 0.0,
+                "scanned_bytes": 0,
+                "query_type": "Allele Frequency Rollup",
+                "mode": "online",
+                "status": "NOT_DEPLOYED",
+                "error": "Engine stack is NOT_DEPLOYED. Deploy via scripts/manage_infra.py --action deploy --engines postgres_rds."
+            }
+
+        df, latency, scanned, mode = self.run_athena_sql(
+            sql=sql,
+            database=db_name if "/" not in db_name else "default",
+            query_kind="af",
+            offline=is_offline
         )
-        df, latency, scanned, mode = self.run_athena_sql(sql, query_kind="af", offline=offline)
-        
-        # Adjust simulated metrics by engine profile
-        multiplier = {
-            "Amazon S3 Tables": 0.9,
-            "Custom S3 + Iceberg": 1.0,
-            "Delta Lake on S3": 0.95,
-            "Hail VDS (Spark)": 2.5,
-            "Amazon Aurora PostgreSQL (Serverless v2)": 0.3,
-            "Amazon RDS PostgreSQL": 0.4,
-            "AWS HealthOmics Variant Store": 1.1
-        }.get(engine, 1.0)
-        
+
         telemetry = {
             "engine": engine,
-            "latency_ms": round(latency * multiplier, 1),
+            "latency_ms": round(latency, 1),
             "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
             "query_type": "Allele Frequency Rollup",
-            "mode": mode
+            "mode": mode,
+            "target_database": db_name
         }
         return df, telemetry
 
     def get_pathogenic_carriers(self, engine: str, gene: str = "APP", offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """Fetch carrier discovery records."""
-        sql = (
-            f"SELECT sample_id, reference_name, start, reference_bases, alternate_bases, "
-            f"genotype, dp, gq, allele_depth, "
-            f"json_extract_scalar(attributes, '$.gene') AS gene_symbol, "
-            f"json_extract_scalar(attributes, '$.clnsig') AS clinical_significance "
-            f"FROM genomics_custom_iceberg.variants "
-            f"WHERE reference_name = 'chr21' AND start = 25891796 AND genotype IN ('0/1', '1/1');"
-        )
-        df, latency, scanned, mode = self.run_athena_sql(sql, query_kind="carriers", offline=offline)
-        
-        # Aurora/RDS point lookup B-tree speedup
-        adj_latency = 45.0 if "Aurora" in engine else (65.0 if "RDS" in engine else latency)
-        telemetry = {
-            "engine": engine,
-            "latency_ms": round(adj_latency, 1),
-            "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
-            "query_type": "Pathogenic Carrier Point Lookup",
-            "mode": mode
-        }
-        return df, telemetry
+        """Fetch carrier discovery records targeting the chosen backend engine."""
+        is_offline = self.offline_mode if offline is None else offline
+        sql = self.build_engine_sql(engine, query_kind="carriers", gene=gene)
+        config = self.get_engine_config(engine)
+        db_name = config.get("database", "genomics_custom_iceberg")
 
-    def get_gene_burden(self, engine: str, offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """Fetch gene burden rollups."""
-        sql = (
-            "SELECT v.sample_id, json_extract_scalar(v.attributes, '$.gene') AS gene_symbol, "
-            "COUNT(DISTINCT v.start) AS distinct_variant_sites, "
-            "SUM(CASE WHEN v.genotype = '0/1' THEN 1 WHEN v.genotype = '1/1' THEN 2 ELSE 0 END) AS total_alt_allele_burden "
-            "FROM genomics_custom_iceberg.variants v "
-            "WHERE v.reference_name = 'chr21' AND v.genotype IN ('0/1', '1/1') "
-            "AND json_extract_scalar(v.attributes, '$.gene') = 'APP' "
-            "GROUP BY v.sample_id, json_extract_scalar(v.attributes, '$.gene');"
+        if not is_offline and "RDS PostgreSQL" in engine:
+            return pd.DataFrame(), {
+                "engine": engine,
+                "latency_ms": 0.0,
+                "scanned_bytes": 0,
+                "query_type": "Pathogenic Carrier Point Lookup",
+                "mode": "online",
+                "status": "NOT_DEPLOYED",
+                "error": "Engine stack is NOT_DEPLOYED."
+            }
+
+        df, latency, scanned, mode = self.run_athena_sql(
+            sql=sql,
+            database=db_name if "/" not in db_name else "default",
+            query_kind="carriers",
+            offline=is_offline
         )
-        df, latency, scanned, mode = self.run_athena_sql(sql, query_kind="burden", offline=offline)
+
         telemetry = {
             "engine": engine,
             "latency_ms": round(latency, 1),
-            "scanned_bytes": scanned,
+            "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
+            "query_type": "Pathogenic Carrier Point Lookup",
+            "mode": mode,
+            "target_database": db_name
+        }
+        return df, telemetry
+
+    def get_gene_burden(self, engine: str, gene: str = "APP", offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+        """Fetch gene burden rollups targeting the chosen backend engine."""
+        is_offline = self.offline_mode if offline is None else offline
+        sql = self.build_engine_sql(engine, query_kind="burden", gene=gene)
+        config = self.get_engine_config(engine)
+        db_name = config.get("database", "genomics_custom_iceberg")
+
+        if not is_offline and "RDS PostgreSQL" in engine:
+            return pd.DataFrame(), {
+                "engine": engine,
+                "latency_ms": 0.0,
+                "scanned_bytes": 0,
+                "query_type": "Gene Burden Rollup",
+                "mode": "online",
+                "status": "NOT_DEPLOYED",
+                "error": "Engine stack is NOT_DEPLOYED."
+            }
+
+        df, latency, scanned, mode = self.run_athena_sql(
+            sql=sql,
+            database=db_name if "/" not in db_name else "default",
+            query_kind="burden",
+            offline=is_offline
+        )
+
+        telemetry = {
+            "engine": engine,
+            "latency_ms": round(latency, 1),
+            "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
             "query_type": "Gene Burden Rollup",
-            "mode": mode
+            "mode": mode,
+            "target_database": db_name
         }
         return df, telemetry
 
     def get_omop_phenotype_join(self, engine: str, offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """Fetch Genotype ↔ OMOP CDM cross-modal join."""
-        sql = (
-            "WITH target_carriers AS ( "
-            "  SELECT v.sample_id, v.reference_name, v.start, v.genotype, "
-            "         json_extract_scalar(v.attributes, '$.gene') AS gene_symbol, "
-            "         json_extract_scalar(v.attributes, '$.clnsig') AS clinical_significance "
-            "  FROM genomics_custom_iceberg.variants v "
-            "  WHERE v.reference_name = 'chr21' AND v.start = 25891796 AND v.genotype IN ('0/1', '1/1') "
-            ") "
-            "SELECT p.person_id, p.sample_id, p.year_of_birth, tc.gene_symbol, tc.clinical_significance, tc.genotype, "
-            "       co.condition_concept_id, co.condition_start_date "
-            "FROM clinical_omop.person p "
-            "INNER JOIN target_carriers tc ON p.sample_id = tc.sample_id "
-            "LEFT JOIN clinical_omop.condition_occurrence co ON p.person_id = co.person_id;"
+        """Fetch Genotype ↔ OMOP CDM cross-modal join targeting the chosen backend engine."""
+        is_offline = self.offline_mode if offline is None else offline
+        sql = self.build_engine_sql(engine, query_kind="omop")
+        config = self.get_engine_config(engine)
+        db_name = config.get("database", "genomics_custom_iceberg")
+
+        if not is_offline and "RDS PostgreSQL" in engine:
+            return pd.DataFrame(), {
+                "engine": engine,
+                "latency_ms": 0.0,
+                "scanned_bytes": 0,
+                "query_type": "Genotype-Phenotype OMOP Join",
+                "mode": "online",
+                "status": "NOT_DEPLOYED",
+                "error": "Engine stack is NOT_DEPLOYED."
+            }
+
+        df, latency, scanned, mode = self.run_athena_sql(
+            sql=sql,
+            database="clinical_omop",
+            query_kind="omop",
+            offline=is_offline
         )
-        df, latency, scanned, mode = self.run_athena_sql(sql, database="clinical_omop", query_kind="omop", offline=offline)
+
         telemetry = {
             "engine": engine,
             "latency_ms": round(latency, 1),
-            "scanned_bytes": scanned,
+            "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
             "query_type": "Genotype-Phenotype OMOP Join",
-            "mode": mode
+            "mode": mode,
+            "target_database": db_name
         }
         return df, telemetry
 
@@ -335,6 +481,7 @@ class VariantStoreBackend:
                 "rows_retrieved": len(df),
                 "latency_ms": lat_ms,
                 "scanned_bytes": len(df) * bytes_per_row,
+                "query_type": "Direct Store Table Inspection",
                 "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
@@ -354,6 +501,7 @@ class VariantStoreBackend:
                 "rows_retrieved": len(df),
                 "latency_ms": 15.0 if is_offline else 25.0,
                 "scanned_bytes": 0 if is_offline else len(df) * 64,
+                "query_type": "Direct Store Table Inspection",
                 "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
@@ -367,6 +515,7 @@ class VariantStoreBackend:
                 "rows_retrieved": len(df),
                 "latency_ms": 14.0 if is_offline else 22.0,
                 "scanned_bytes": 0 if is_offline else len(df) * 48,
+                "query_type": "Direct Store Table Inspection",
                 "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql

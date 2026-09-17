@@ -141,6 +141,63 @@ class TestBackendMetadata(unittest.TestCase):
         df_omop = self.backend._get_fallback_dataframe("omop")
         self.assertFalse(df_omop.empty)
 
+    def test_offline_mode_attribute(self):
+        self.assertFalse(self.backend.offline_mode)
+        self.backend.offline_mode = True
+        self.assertTrue(self.backend.offline_mode)
+        self.backend.offline_mode = False
+
+    def test_run_athena_sql_offline(self):
+        df, lat, scanned, mode = self.backend.run_athena_sql("SELECT 1", offline=True)
+        self.assertFalse(df.empty)
+        self.assertEqual(mode, "offline")
+        self.assertLess(lat, 50.0)
+
+    def test_get_allele_frequencies_offline(self):
+        df, telemetry = self.backend.get_allele_frequencies("Amazon S3 Tables", offline=True)
+        self.assertFalse(df.empty)
+        self.assertEqual(telemetry["mode"], "offline")
+
+    def test_get_pathogenic_carriers_offline(self):
+        df, telemetry = self.backend.get_pathogenic_carriers("Custom S3 + Iceberg", offline=True)
+        self.assertFalse(df.empty)
+        self.assertEqual(telemetry["mode"], "offline")
+
+    def test_get_gene_burden_offline(self):
+        df, telemetry = self.backend.get_gene_burden("Amazon S3 Tables", offline=True)
+        self.assertFalse(df.empty)
+        self.assertEqual(telemetry["mode"], "offline")
+
+    def test_get_omop_phenotype_join_offline(self):
+        df, telemetry = self.backend.get_omop_phenotype_join("Amazon S3 Tables", offline=True)
+        self.assertFalse(df.empty)
+        self.assertEqual(telemetry["mode"], "offline")
+
+    def test_get_raw_store_data_offline(self):
+        df, telemetry, sql = self.backend.get_raw_store_data("Amazon S3 Tables", offline=True)
+        self.assertFalse(df.empty)
+        self.assertEqual(telemetry["mode"], "offline")
+
+    def test_engine_query_sql_generation_s3_tables(self):
+        sql = self.backend.build_engine_sql("Amazon S3 Tables", query_kind="af")
+        self.assertTrue("s3tablescatalog" in sql or "genomics" in sql)
+
+    def test_engine_query_sql_generation_delta_lake(self):
+        sql = self.backend.build_engine_sql("Delta Lake on S3", query_kind="af")
+        self.assertIn("genomics_delta.variants", sql)
+
+    def test_engine_query_sql_generation_hail_vds(self):
+        sql = self.backend.build_engine_sql("Hail VDS (Spark)", query_kind="af")
+        self.assertIn("genomics_hail_vds.variant_data", sql)
+
+    def test_engine_query_sql_generation_healthomics(self):
+        sql = self.backend.build_engine_sql("AWS HealthOmics Variant Store", query_kind="af")
+        self.assertIn("genomics_healthomics.variants", sql)
+
+    def test_engine_query_sql_generation_postgres(self):
+        sql = self.backend.build_engine_sql("Amazon Aurora PostgreSQL (Serverless v2)", query_kind="af")
+        self.assertIn("attributes->>'gene'", sql)
+
 
 if __name__ == "__main__":
     unittest.main()
