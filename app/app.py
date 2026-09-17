@@ -50,9 +50,19 @@ navbar = dbc.Navbar(
             ])
         ], align="center", className="g-0"),
         dbc.Nav([
+            html.Div([
+                dbc.Label("Execution Mode:", className="small text-muted me-2 mb-0 fw-semibold align-middle"),
+                dbc.Switch(
+                    id="online-offline-switch",
+                    value=True,
+                    className="d-inline-block align-middle me-2",
+                    style={"transform": "scale(1.2)", "cursor": "pointer"}
+                ),
+                html.Span(id="mode-status-badge", className="align-middle")
+            ], className="d-flex align-items-center bg-light px-3 py-1 rounded border shadow-sm me-3"),
             dbc.Badge("AWS HLS Solution Bootcamp", color="primary", className="p-2 fs-7 me-2 shadow-sm"),
             dbc.Badge("OMOP CDM v5.4 & Lakehouse", color="secondary", className="p-2 fs-7 shadow-sm")
-        ], className="ms-auto d-none d-md-flex align-items-center")
+        ], className="ms-auto d-flex align-items-center flex-wrap")
     ], fluid=True),
     color="white",
     className="border-bottom shadow-sm mb-4 py-3"
@@ -69,6 +79,10 @@ sidebar = html.Div([
             html.Span("Storage Architecture Tier", className="fw-bold")
         ], className="bg-light py-2"),
         dbc.CardBody([
+            html.Div([
+                html.Label("Execution Mode:", className="form-label text-muted small fw-semibold mb-1"),
+                html.Div(id="sidebar-mode-indicator", className="mb-3")
+            ]),
             html.Label("Active Storage Engine:", className="form-label text-muted small fw-semibold mb-2"),
             dcc.Dropdown(
                 id="engine-dropdown",
@@ -161,13 +175,66 @@ app.layout = dbc.Container([
 
 
 # -----------------------------------------------------------------------------
+# Callback: Mode Status Indicator (Navbar & Sidebar)
+# -----------------------------------------------------------------------------
+@callback(
+    [Output("mode-status-badge", "children"),
+     Output("sidebar-mode-indicator", "children")],
+    Input("online-offline-switch", "value")
+)
+def update_mode_status_badge(is_online):
+    if is_online:
+        nav_badge = dbc.Badge(
+            [html.I(className="bi bi-cloud-check-fill me-1"), "Live AWS Mode (Online)"],
+            color="success",
+            className="p-2 fs-7 shadow-sm"
+        )
+        sidebar_badge = dbc.Badge(
+            [html.I(className="bi bi-cloud-arrow-up-fill me-1"), "Online: Live AWS Athena & S3 Tables"],
+            color="success",
+            className="w-100 py-2 text-center shadow-sm"
+        )
+    else:
+        nav_badge = dbc.Badge(
+            [html.I(className="bi bi-laptop me-1"), "Offline Demo Mode"],
+            color="warning",
+            className="p-2 fs-7 text-dark shadow-sm"
+        )
+        sidebar_badge = dbc.Badge(
+            [html.I(className="bi bi-laptop me-1"), "Offline: Local Synthetic Simulation"],
+            color="warning",
+            className="w-100 py-2 text-center text-dark shadow-sm"
+        )
+    return nav_badge, sidebar_badge
+
+
+# -----------------------------------------------------------------------------
 # Callback: Update Telemetry Badge
 # -----------------------------------------------------------------------------
 @callback(
     Output("telemetry-badge-container", "children"),
-    Input("engine-dropdown", "value")
+    [Input("engine-dropdown", "value"),
+     Input("online-offline-switch", "value")]
 )
-def update_telemetry_badge(engine):
+def update_telemetry_badge(engine, is_online):
+    if not is_online:
+        return dbc.Card([
+            dbc.CardBody([
+                html.Div([
+                    html.Small("Query Latency SLA:", className="text-muted d-block"),
+                    dbc.Badge("Instant (~18ms)", color="warning", className="p-1 px-2 mb-2 text-dark")
+                ]),
+                html.Div([
+                    html.Small("Storage Architecture:", className="text-muted d-block"),
+                    html.Span("Local Synthetic Simulation (Offline)", className="fw-bold small text-dark d-block mb-1")
+                ]),
+                html.Div([
+                    html.Small("Cost Profile:", className="text-muted d-block"),
+                    html.Span("$0.00 / query (Air-gapped Demo)", className="badge bg-light text-dark border")
+                ])
+            ], className="p-2")
+        ], className="bg-light border")
+
     metrics = {
         "Amazon S3 Tables": ("Sub-second (~800ms)", "Zero-Ops Compaction", "Low ($0.023/GB)", "success"),
         "Custom S3 + Iceberg": ("Sub-second (~890ms)", "Partition Pruned", "Low ($0.023/GB)", "info"),
@@ -202,11 +269,19 @@ def update_telemetry_badge(engine):
 @callback(
     Output("tab-content", "children"),
     [Input("tabs-main", "active_tab"),
-     Input("engine-dropdown", "value")]
+     Input("engine-dropdown", "value"),
+     Input("online-offline-switch", "value")]
 )
-def render_tab_content(active_tab, engine):
+def render_tab_content(active_tab, engine, is_online):
+    offline = not is_online
+    mode_badge = (
+        dbc.Badge([html.I(className="bi bi-cloud-check-fill me-1"), "Live AWS"], color="success", className="ms-2")
+        if is_online else
+        dbc.Badge([html.I(className="bi bi-laptop me-1"), "Offline Sim"], color="warning", className="ms-2 text-dark")
+    )
+
     if active_tab == "tab-af":
-        df, meta = backend.get_allele_frequencies(engine)
+        df, meta = backend.get_allele_frequencies(engine, offline=offline)
         fig = px.bar(
             df,
             x="start",
@@ -221,6 +296,7 @@ def render_tab_content(active_tab, engine):
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Cohort Allele Frequency & Annotation Overview", className="fw-bold me-2"),
+                mode_badge,
                 dbc.Badge(f"Engine: {engine}", color="primary", className="float-end")
             ], className="bg-white border-bottom py-3"),
             dbc.CardBody([
@@ -238,10 +314,11 @@ def render_tab_content(active_tab, engine):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-carriers":
-        df, meta = backend.get_pathogenic_carriers(engine)
+        df, meta = backend.get_pathogenic_carriers(engine, offline=offline)
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Pathogenic Mutation Carrier Discovery (APP rs63750066)", className="fw-bold text-danger me-2"),
+                mode_badge,
                 dbc.Badge(f"Engine: {engine}", color="danger", className="float-end")
             ], className="bg-white border-bottom py-3"),
             dbc.CardBody([
@@ -262,7 +339,7 @@ def render_tab_content(active_tab, engine):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-burden":
-        df, meta = backend.get_gene_burden(engine)
+        df, meta = backend.get_gene_burden(engine, offline=offline)
         fig = px.bar(
             df,
             x="sample_id",
@@ -276,6 +353,7 @@ def render_tab_content(active_tab, engine):
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Gene Burden Rollup Analysis", className="fw-bold me-2"),
+                mode_badge,
                 dbc.Badge(f"Engine: {engine}", color="info", className="float-end")
             ], className="bg-white border-bottom py-3"),
             dbc.CardBody([
@@ -292,10 +370,11 @@ def render_tab_content(active_tab, engine):
         ], className="shadow-sm border-0")
 
     elif active_tab == "tab-omop":
-        df, meta = backend.get_omop_phenotype_join(engine)
+        df, meta = backend.get_omop_phenotype_join(engine, offline=offline)
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Multimodal Genotype ↔ OMOP CDM Phenotype Federation", className="fw-bold text-success me-2"),
+                mode_badge,
                 dbc.Badge(f"Engine: {engine}", color="success", className="float-end")
             ], className="bg-white border-bottom py-3"),
             dbc.CardBody([
@@ -352,7 +431,8 @@ def render_tab_content(active_tab, engine):
                 dbc.Row([
                     dbc.Col([
                         html.Span("Store Data Explorer — Direct Table Inspection", className="fw-bold fs-5 me-2"),
-                        dbc.Badge(f"Engine: {engine}", color="primary", className="p-2")
+                        dbc.Badge(f"Engine: {engine}", color="primary", className="p-2"),
+                        mode_badge
                     ], md=5, className="d-flex align-items-center mb-2 mb-md-0"),
                     dbc.Col([
                         dbc.Row([
@@ -414,15 +494,24 @@ def render_tab_content(active_tab, engine):
     [Input("engine-dropdown", "value"),
      Input("raw-table-select", "value"),
      Input("raw-chrom-select", "value"),
-     Input("raw-sample-select", "value")]
+     Input("raw-sample-select", "value"),
+     Input("online-offline-switch", "value")]
 )
-def update_raw_explorer_body(engine, table_name, chromosome, sample_id):
+def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_online):
+    offline = not is_online
     meta = backend.get_store_metadata(engine)
     df, telemetry, sql = backend.get_raw_store_data(
         engine=engine,
         table_name=table_name or "variants",
         chromosome=chromosome or "All",
-        sample_id=sample_id or "All"
+        sample_id=sample_id or "All",
+        offline=offline
+    )
+
+    mode_badge = (
+        dbc.Badge([html.I(className="bi bi-cloud-check-fill me-1"), "Live AWS"], color="success", className="ms-2")
+        if is_online else
+        dbc.Badge([html.I(className="bi bi-laptop me-1"), "Offline Sim"], color="warning", className="ms-2 text-dark")
     )
 
     # 1. Physical Storage Architecture & Schema Card
@@ -449,7 +538,8 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id):
         dbc.CardHeader([
             html.I(className="bi bi-terminal me-2 text-dark"),
             html.Span("Direct Engine SQL Execution Preview", className="fw-bold me-2"),
-            dbc.Badge(f"Rows: {telemetry['rows_retrieved']}", color="success", className="me-2"),
+            mode_badge,
+            dbc.Badge(f"Rows: {telemetry['rows_retrieved']}", color="success", className="me-2 ms-2"),
             dbc.Badge(f"Engine Latency: {telemetry['latency_ms']} ms", color="info", className="me-2"),
             dbc.Badge(f"Scanned: {telemetry['scanned_bytes']} bytes", color="secondary")
         ], className="bg-light py-2 d-flex align-items-center flex-wrap"),

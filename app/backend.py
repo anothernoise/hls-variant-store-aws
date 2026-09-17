@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -39,9 +39,14 @@ class VariantStoreBackend:
         "AWS HealthOmics Variant Store"
     ]
 
-    def __init__(self, default_workgroup: str = "hls-variant-store-dev"):
+    def __init__(self, default_workgroup: str = "hls-variant-store-dev", offline_mode: bool = False):
         self.workgroup = default_workgroup
+        self.offline_mode = offline_mode
         self._load_fallback_data()
+
+    def set_offline_mode(self, enabled: bool):
+        """Sets the global offline mode toggle."""
+        self.offline_mode = enabled
 
     def _load_fallback_data(self):
         """Loads deterministic local synthetic datasets as baseline."""
@@ -65,8 +70,18 @@ class VariantStoreBackend:
             except Exception:
                 pass
 
-    def run_athena_sql(self, sql: str, database: str = "genomics_custom_iceberg", query_kind: str = "af") -> Tuple[pd.DataFrame, float, int]:
-        """Execute a live SQL query via Athena, returning (DataFrame, engine_ms, scanned_bytes)."""
+    def run_athena_sql(
+        self,
+        sql: str,
+        database: str = "genomics_custom_iceberg",
+        query_kind: str = "af",
+        offline: Optional[bool] = None
+    ) -> Tuple[pd.DataFrame, float, int, str]:
+        """Execute a live SQL query via Athena, returning (DataFrame, engine_ms, scanned_bytes, mode)."""
+        is_offline = self.offline_mode if offline is None else offline
+        if is_offline:
+            return self._get_fallback_dataframe(query_kind), 18.5, 0, "offline"
+
         cmd = [
             "aws", "athena", "start-query-execution",
             "--query-string", sql,
@@ -106,14 +121,14 @@ class VariantStoreBackend:
                     )
                     rows = json.loads(res_p.stdout).get("ResultSet", {}).get("Rows", [])
                     if not rows:
-                        return pd.DataFrame(), engine_time, scanned_bytes
+                        return pd.DataFrame(), engine_time, scanned_bytes, "online"
                     
                     header = [c.get("VarCharValue", f"col_{i}") for i, c in enumerate(rows[0]["Data"])]
                     data = []
                     for r in rows[1:]:
                         data.append([c.get("VarCharValue", None) for c in r["Data"]])
                     df = pd.DataFrame(data, columns=header)
-                    return df, engine_time, scanned_bytes
+                    return df, engine_time, scanned_bytes, "online"
                 elif state in ("FAILED", "CANCELLED"):
                     break
                 time.sleep(0.5)
@@ -121,7 +136,7 @@ class VariantStoreBackend:
             pass
         
         # Fallback to deterministic local simulation if Athena is unavailable/offline
-        return self._get_fallback_dataframe(query_kind), 450.0, 15000
+        return self._get_fallback_dataframe(query_kind), 450.0, 15000, "offline"
 
     def _get_fallback_dataframe(self, query_kind: str) -> pd.DataFrame:
         """Returns deterministic baseline DataFrame for offline demo UI."""
@@ -155,7 +170,7 @@ class VariantStoreBackend:
                 {"reference_name": "chr1", "start": "100120", "reference_bases": "T", "alternate_bases": "C", "total_cohort_samples": "10", "alt_carrier_count": "2", "carrier_frequency": "0.2000", "gene_symbol": "BRCA1", "clinical_significance": "BENIGN"},
             ])
 
-    def get_allele_frequencies(self, engine: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def get_allele_frequencies(self, engine: str, offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Fetch allele frequency distributions for the chosen backend."""
         sql = (
             "SELECT reference_name, start, reference_bases, alternate_bases, "
@@ -170,7 +185,7 @@ class VariantStoreBackend:
             "json_extract_scalar(attributes, '$.gene'), json_extract_scalar(attributes, '$.clnsig') "
             "ORDER BY alt_carrier_count DESC LIMIT 10;"
         )
-        df, latency, scanned = self.run_athena_sql(sql, query_kind="af")
+        df, latency, scanned, mode = self.run_athena_sql(sql, query_kind="af", offline=offline)
         
         # Adjust simulated metrics by engine profile
         multiplier = {
@@ -187,11 +202,12 @@ class VariantStoreBackend:
             "engine": engine,
             "latency_ms": round(latency * multiplier, 1),
             "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
-            "query_type": "Allele Frequency Rollup"
+            "query_type": "Allele Frequency Rollup",
+            "mode": mode
         }
         return df, telemetry
 
-    def get_pathogenic_carriers(self, engine: str, gene: str = "APP") -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def get_pathogenic_carriers(self, engine: str, gene: str = "APP", offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Fetch carrier discovery records."""
         sql = (
             f"SELECT sample_id, reference_name, start, reference_bases, alternate_bases, "
@@ -201,7 +217,7 @@ class VariantStoreBackend:
             f"FROM genomics_custom_iceberg.variants "
             f"WHERE reference_name = 'chr21' AND start = 25891796 AND genotype IN ('0/1', '1/1');"
         )
-        df, latency, scanned = self.run_athena_sql(sql, query_kind="carriers")
+        df, latency, scanned, mode = self.run_athena_sql(sql, query_kind="carriers", offline=offline)
         
         # Aurora/RDS point lookup B-tree speedup
         adj_latency = 45.0 if "Aurora" in engine else (65.0 if "RDS" in engine else latency)
@@ -209,11 +225,12 @@ class VariantStoreBackend:
             "engine": engine,
             "latency_ms": round(adj_latency, 1),
             "scanned_bytes": scanned if "PostgreSQL" not in engine else 0,
-            "query_type": "Pathogenic Carrier Point Lookup"
+            "query_type": "Pathogenic Carrier Point Lookup",
+            "mode": mode
         }
         return df, telemetry
 
-    def get_gene_burden(self, engine: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def get_gene_burden(self, engine: str, offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Fetch gene burden rollups."""
         sql = (
             "SELECT v.sample_id, json_extract_scalar(v.attributes, '$.gene') AS gene_symbol, "
@@ -224,16 +241,17 @@ class VariantStoreBackend:
             "AND json_extract_scalar(v.attributes, '$.gene') = 'APP' "
             "GROUP BY v.sample_id, json_extract_scalar(v.attributes, '$.gene');"
         )
-        df, latency, scanned = self.run_athena_sql(sql, query_kind="burden")
+        df, latency, scanned, mode = self.run_athena_sql(sql, query_kind="burden", offline=offline)
         telemetry = {
             "engine": engine,
             "latency_ms": round(latency, 1),
             "scanned_bytes": scanned,
-            "query_type": "Gene Burden Rollup"
+            "query_type": "Gene Burden Rollup",
+            "mode": mode
         }
         return df, telemetry
 
-    def get_omop_phenotype_join(self, engine: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def get_omop_phenotype_join(self, engine: str, offline: Optional[bool] = None) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Fetch Genotype ↔ OMOP CDM cross-modal join."""
         sql = (
             "WITH target_carriers AS ( "
@@ -249,12 +267,13 @@ class VariantStoreBackend:
             "INNER JOIN target_carriers tc ON p.sample_id = tc.sample_id "
             "LEFT JOIN clinical_omop.condition_occurrence co ON p.person_id = co.person_id;"
         )
-        df, latency, scanned = self.run_athena_sql(sql, database="clinical_omop", query_kind="omop")
+        df, latency, scanned, mode = self.run_athena_sql(sql, database="clinical_omop", query_kind="omop", offline=offline)
         telemetry = {
             "engine": engine,
             "latency_ms": round(latency, 1),
             "scanned_bytes": scanned,
-            "query_type": "Genotype-Phenotype OMOP Join"
+            "query_type": "Genotype-Phenotype OMOP Join",
+            "mode": mode
         }
         return df, telemetry
 
@@ -279,12 +298,14 @@ class VariantStoreBackend:
         table_name: str = "variants",
         chromosome: str = "All",
         sample_id: str = "All",
-        limit: int = 100
+        limit: int = 100,
+        offline: Optional[bool] = None
     ) -> Tuple[pd.DataFrame, Dict[str, Any], str]:
         """Directly retrieves raw store records with live SQL and schema-accurate fallback."""
         config = self.get_engine_config(engine)
         db_name = config.get("database", "genomics_custom_iceberg")
         var_table = config.get("table_name", "variants")
+        is_offline = self.offline_mode if offline is None else offline
 
         where_clauses = []
         if table_name == "variants":
@@ -305,15 +326,16 @@ class VariantStoreBackend:
                 df = df.head(limit)
             
             tel_prof = config.get("telemetry_profile", {})
-            lat_ms = tel_prof.get("typical_latency_ms", 38.0 if "PostgreSQL" in engine else 420.0)
-            bytes_per_row = tel_prof.get("scanned_bytes_per_row", 0 if "PostgreSQL" in engine else 128)
+            lat_ms = 18.0 if is_offline else tel_prof.get("typical_latency_ms", 38.0 if "PostgreSQL" in engine else 420.0)
+            bytes_per_row = 0 if is_offline else tel_prof.get("scanned_bytes_per_row", 0 if "PostgreSQL" in engine else 128)
 
             telemetry = {
                 "engine": engine,
                 "table": f"{db_name}.{var_table}",
                 "rows_retrieved": len(df),
                 "latency_ms": lat_ms,
-                "scanned_bytes": len(df) * bytes_per_row
+                "scanned_bytes": len(df) * bytes_per_row,
+                "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
 
@@ -330,8 +352,9 @@ class VariantStoreBackend:
                 "engine": engine,
                 "table": "clinical_omop.person",
                 "rows_retrieved": len(df),
-                "latency_ms": 25.0,
-                "scanned_bytes": len(df) * 64
+                "latency_ms": 15.0 if is_offline else 25.0,
+                "scanned_bytes": 0 if is_offline else len(df) * 64,
+                "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
 
@@ -342,7 +365,8 @@ class VariantStoreBackend:
                 "engine": engine,
                 "table": "clinical_omop.condition_occurrence",
                 "rows_retrieved": len(df),
-                "latency_ms": 22.0,
-                "scanned_bytes": len(df) * 48
+                "latency_ms": 14.0 if is_offline else 22.0,
+                "scanned_bytes": 0 if is_offline else len(df) * 48,
+                "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
