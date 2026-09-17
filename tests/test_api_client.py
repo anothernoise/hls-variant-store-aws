@@ -140,7 +140,40 @@ class TestVariantStoreApiClient(unittest.TestCase):
         self.assertEqual(res["records_ingested"], 1)
         self.assertEqual(res["status"], "COMPLETED")
 
+    @patch("requests.Session.get")
+    def test_get_engine_health_from_api(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "engine_id": "s3_tables",
+            "status": "pass",
+            "deployment_status": "ACTIVE",
+            "checks": {},
+            "latency_ms": 1.2
+        }
+        mock_get.return_value = mock_resp
+
+        data = self.client.get_engine_health("s3_tables")
+        self.assertEqual(data["engine_id"], "s3_tables")
+        self.assertEqual(data["status"], "pass")
+
+    @patch("requests.Session.get")
+    def test_get_all_engines_health_from_api(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "status": "healthy",
+            "total_engines": 7,
+            "engines": {}
+        }
+        mock_get.return_value = mock_resp
+
+        data = self.client.get_all_engines_health()
+        self.assertEqual(data["status"], "healthy")
+        self.assertEqual(data["total_engines"], 7)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

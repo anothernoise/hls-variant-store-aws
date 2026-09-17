@@ -219,9 +219,23 @@ def update_mode_status_badge(is_online):
      Input("online-offline-switch", "value")]
 )
 def update_telemetry_badge(engine, is_online):
+    health = api_client.get_engine_health(engine, offline=not is_online)
+    h_status = health.get("status", "pass")
+    h_dep = health.get("deployment_status", "ACTIVE")
+    if h_status == "pass":
+        health_badge = dbc.Badge([html.I(className="bi bi-check-circle-fill me-1"), f"Health: {h_dep}"], color="success", className="p-1 px-2 mb-2")
+    elif h_status == "warn":
+        health_badge = dbc.Badge([html.I(className="bi bi-exclamation-triangle-fill me-1"), f"Health: {h_dep}"], color="warning", className="p-1 px-2 mb-2 text-dark")
+    else:
+        health_badge = dbc.Badge([html.I(className="bi bi-x-octagon-fill me-1"), f"Health: {h_dep}"], color="danger", className="p-1 px-2 mb-2")
+
     if not is_online:
         return dbc.Card([
             dbc.CardBody([
+                html.Div([
+                    html.Small("Engine Health Status:", className="text-muted d-block"),
+                    health_badge
+                ]),
                 html.Div([
                     html.Small("Query Latency SLA:", className="text-muted d-block"),
                     dbc.Badge("Instant (~18ms)", color="warning", className="p-1 px-2 mb-2 text-dark")
@@ -249,6 +263,10 @@ def update_telemetry_badge(engine, is_online):
 
     return dbc.Card([
         dbc.CardBody([
+            html.Div([
+                html.Small("Engine Health Status:", className="text-muted d-block"),
+                health_badge
+            ]),
             html.Div([
                 html.Small("Query Latency SLA:", className="text-muted d-block"),
                 dbc.Badge(metrics[0], color=metrics[3], className="p-1 px-2 mb-2")

@@ -11,7 +11,9 @@ from api.schemas import (
     QueryResultResponse,
     QueryTelemetry,
     FeedBatchRequest,
-    FeedBatchResponse
+    FeedBatchResponse,
+    EngineHealthResponse,
+    EngineHealthSummaryResponse
 )
 from app.backend import VariantStoreBackend
 
@@ -56,6 +58,15 @@ def list_engines():
     return result
 
 
+@router.get("/health/all", response_model=EngineHealthSummaryResponse)
+def get_all_engines_health(
+    offline: bool = Query(default=False, description="Toggle offline synthetic simulation mode")
+):
+    """Retrieves aggregated health and readiness report across all 7 genomic storage engines."""
+    summary = backend.check_all_engines_health(offline=offline)
+    return EngineHealthSummaryResponse(**summary)
+
+
 @router.get("/{engine_id}", response_model=EngineMetadataResponse)
 def get_engine_metadata(engine_id: str):
     """Retrieves physical storage architecture details for a specific engine."""
@@ -70,6 +81,17 @@ def get_engine_metadata(engine_id: str):
         architecture=cfg.get("architecture", {}),
         telemetry_profile=cfg.get("telemetry_profile", {})
     )
+
+
+@router.get("/{engine_id}/health", response_model=EngineHealthResponse)
+def get_engine_health(
+    engine_id: str,
+    offline: bool = Query(default=False, description="Toggle offline synthetic simulation mode")
+):
+    """Executes runtime health and availability probe for a specific genomic storage engine."""
+    canonical_name = resolve_engine_name(engine_id)
+    health = backend.check_engine_health(canonical_name, offline=offline)
+    return EngineHealthResponse(**health)
 
 
 @router.get("/{engine_id}/allele-frequencies", response_model=QueryResultResponse)

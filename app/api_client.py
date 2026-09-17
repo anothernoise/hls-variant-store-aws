@@ -139,3 +139,24 @@ class VariantStoreApiClient:
             logger.warning("FastAPI middle layer unreachable (%s), using direct backend for feed", e)
         return self.fallback_backend.feed_engine(engine=engine, records=records, cohort_id=cohort_id)
 
+    def get_engine_health(self, engine: str, offline: bool = False) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/api/v1/engines/{engine}/health"
+            resp = self.session.get(url, params={"offline": offline}, timeout=10.0)
+            if resp.status_code in (200, 503):
+                return resp.json()
+        except Exception as e:
+            logger.warning("FastAPI middle layer unreachable (%s), using direct backend for health check", e)
+        return self.fallback_backend.check_engine_health(engine=engine, offline=offline)
+
+    def get_all_engines_health(self, offline: bool = False) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/api/v1/engines/health/all"
+            resp = self.session.get(url, params={"offline": offline}, timeout=15.0)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception as e:
+            logger.warning("FastAPI middle layer unreachable (%s), using direct backend for health summary", e)
+        return self.fallback_backend.check_all_engines_health(offline=offline)
+
+

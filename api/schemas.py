@@ -76,3 +76,33 @@ class FeedBatchResponse(BaseModel):
     status: str = Field(default="COMPLETED", description="Batch ingestion status")
     target_table: str = Field(description="Target table where records were appended")
 
+
+class ComponentCheck(BaseModel):
+    name: str = Field(description="Subsystem or resource check component name")
+    status: str = Field(description="Health status: pass, warn, or fail")
+    observed_value: Optional[str] = Field(default=None, description="Observed resource or connectivity status")
+    latency_ms: float = Field(default=0.0, description="Component probe latency in ms")
+
+
+class EngineHealthResponse(BaseModel):
+    engine_id: str = Field(description="Unique engine identifier")
+    engine_name: str = Field(description="Human-readable storage engine name")
+    status: str = Field(description="RFC health check status: pass, warn, or fail")
+    deployment_status: str = Field(description="AWS infrastructure status: ACTIVE, AVAILABLE, NOT_DEPLOYED, DEGRADED")
+    target_resource: str = Field(description="Physical AWS target resource (S3 bucket, Glue DB, RDS cluster)")
+    latency_ms: float = Field(description="Health check probe duration in ms")
+    mode: str = Field(description="Execution mode: online or offline")
+    checks: Dict[str, ComponentCheck] = Field(default_factory=dict, description="Detailed component checks")
+    timestamp: str = Field(description="ISO 8601 UTC timestamp")
+
+
+class EngineHealthSummaryResponse(BaseModel):
+    status: str = Field(description="Overall health status: healthy, degraded, or unhealthy")
+    total_engines: int = Field(description="Total configured storage engines")
+    active_engines: int = Field(description="Count of currently active/available storage engines")
+    not_deployed_engines: int = Field(description="Count of un-deployed storage engines")
+    probe_latency_ms: float = Field(description="Total probe duration in ms")
+    engines: Dict[str, EngineHealthResponse] = Field(description="Map of engine_id to health response")
+    timestamp: str = Field(description="ISO 8601 UTC timestamp")
+
+

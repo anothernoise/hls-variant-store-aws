@@ -223,7 +223,27 @@ class TestBackendMetadata(unittest.TestCase):
         self.assertEqual(res["engine"], "s3_tables")
         self.assertEqual(res["status"], "COMPLETED")
 
+    def test_check_engine_health_s3_tables(self):
+        health = self.backend.check_engine_health("Amazon S3 Tables", offline=True)
+        self.assertEqual(health["engine_id"], "s3_tables")
+        self.assertEqual(health["status"], "pass")
+        self.assertEqual(health["deployment_status"], "ACTIVE")
+        self.assertIn("checks", health)
+
+    def test_check_engine_health_rds_not_deployed(self):
+        health = self.backend.check_engine_health("Amazon RDS PostgreSQL", offline=True)
+        self.assertEqual(health["engine_id"], "rds_postgres")
+        self.assertEqual(health["status"], "warn")
+        self.assertEqual(health["deployment_status"], "NOT_DEPLOYED")
+
+    def test_check_all_engines_health(self):
+        summary = self.backend.check_all_engines_health(offline=True)
+        self.assertIn("status", summary)
+        self.assertGreaterEqual(summary["total_engines"], 7)
+        self.assertIn("s3_tables", summary["engines"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

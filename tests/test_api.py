@@ -124,6 +124,36 @@ class TestFastAPIMiddleLayer(unittest.TestCase):
         response = self.client.post("/api/v1/engines/invalid_engine_xyz/feed", json=payload)
         self.assertEqual(response.status_code, 404)
 
+    def test_engine_health_success(self):
+        response = self.client.get("/api/v1/engines/s3_tables/health?offline=true")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["engine_id"], "s3_tables")
+        self.assertEqual(data["status"], "pass")
+        self.assertEqual(data["deployment_status"], "ACTIVE")
+        self.assertIn("checks", data)
+        self.assertIn("timestamp", data)
+
+    def test_engine_health_unknown_engine_404(self):
+        response = self.client.get("/api/v1/engines/nonexistent_xyz/health")
+        self.assertEqual(response.status_code, 404)
+
+    def test_not_deployed_engine_health(self):
+        response = self.client.get("/api/v1/engines/rds_postgres/health?offline=true")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "warn")
+        self.assertEqual(data["deployment_status"], "NOT_DEPLOYED")
+
+    def test_all_engines_health_summary(self):
+        response = self.client.get("/api/v1/engines/health/all?offline=true")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("status", data)
+        self.assertGreaterEqual(data["total_engines"], 7)
+        self.assertIn("engines", data)
+
 
 if __name__ == "__main__":
     unittest.main()
+
