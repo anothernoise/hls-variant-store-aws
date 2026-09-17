@@ -44,6 +44,24 @@ variable "tags" {
   }
 }
 
+variable "enable_s3_tables" {
+  type        = bool
+  description = "Enable Amazon S3 Tables table bucket and Apache Iceberg table resources"
+  default     = true
+}
+
+variable "enable_custom_iceberg" {
+  type        = bool
+  description = "Enable Custom S3 + Iceberg warehouse and Glue Catalog resources"
+  default     = true
+}
+
+variable "enable_clinical_omop" {
+  type        = bool
+  description = "Enable OMOP CDM clinical data warehouse bucket and Glue Catalog resources"
+  default     = true
+}
+
 variable "enable_delta_lake" {
   type        = bool
   description = "Enable Delta Lake on S3 warehouse and Glue Catalog resources"

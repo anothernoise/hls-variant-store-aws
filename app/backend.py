@@ -65,6 +65,8 @@ class VariantStoreBackend:
             "--query-string", sql,
             "--work-group", self.workgroup,
             "--query-execution-context", f"Database={database}",
+            "--region", os.environ.get("AWS_REGION", "us-east-1"),
+            "--profile", os.environ.get("AWS_PROFILE", "default"),
             "--output", "json"
         ]
         try:
@@ -74,7 +76,10 @@ class VariantStoreBackend:
             # Poll for completion
             for _ in range(30):
                 stat_p = subprocess.run(
-                    ["aws", "athena", "get-query-execution", "--query-execution-id", qid, "--output", "json"],
+                    ["aws", "athena", "get-query-execution", "--query-execution-id", qid,
+                     "--region", os.environ.get("AWS_REGION", "us-east-1"),
+                     "--profile", os.environ.get("AWS_PROFILE", "default"),
+                     "--output", "json"],
                     capture_output=True, text=True, check=True, timeout=5
                 )
                 info = json.loads(stat_p.stdout)["QueryExecution"]
@@ -86,7 +91,10 @@ class VariantStoreBackend:
                     
                     # Fetch results
                     res_p = subprocess.run(
-                        ["aws", "athena", "get-query-results", "--query-execution-id", qid, "--output", "json"],
+                        ["aws", "athena", "get-query-results", "--query-execution-id", qid,
+                         "--region", os.environ.get("AWS_REGION", "us-east-1"),
+                         "--profile", os.environ.get("AWS_PROFILE", "default"),
+                         "--output", "json"],
                         capture_output=True, text=True, check=True, timeout=5
                     )
                     rows = json.loads(res_p.stdout).get("ResultSet", {}).get("Rows", [])
