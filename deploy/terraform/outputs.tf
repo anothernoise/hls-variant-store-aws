@@ -86,3 +86,39 @@ output "clinical_steward_role_arn" {
   description = "IAM Role ARN for clinical geneticist / steward queries (unrestricted PHI access)"
   value       = aws_iam_role.clinical_steward.arn
 }
+
+# Delta Lake Outputs
+output "delta_lake_warehouse_bucket" {
+  description = "S3 bucket for Delta Lake warehouse"
+  value       = var.enable_delta_lake ? aws_s3_bucket.delta_warehouse[0].bucket : null
+}
+
+output "delta_lake_glue_database" {
+  description = "Glue Catalog Database for Delta Lake"
+  value       = var.enable_delta_lake ? aws_glue_catalog_database.genomics_delta[0].name : null
+}
+
+# Hail VDS Outputs
+output "hail_vds_bucket" {
+  description = "S3 bucket for Hail VDS sparse matrix store"
+  value       = var.enable_hail_vds ? aws_s3_bucket.hail_vds[0].bucket : null
+}
+
+output "hail_vds_glue_database" {
+  description = "Glue Catalog Database for Hail VDS"
+  value       = var.enable_hail_vds ? aws_glue_catalog_database.genomics_hail[0].name : null
+}
+
+# PostgreSQL / Aurora Outputs
+output "postgres_endpoint" {
+  description = "Connection endpoint for PostgreSQL / Amazon Aurora"
+  value = var.enable_postgres ? (
+    var.postgres_deployment_mode == "aurora_serverless" ? aws_rds_cluster.aurora[0].endpoint : aws_db_instance.rds[0].endpoint
+  ) : null
+}
+
+output "postgres_mode" {
+  description = "Configured PostgreSQL deployment mode (aurora_serverless vs rds)"
+  value       = var.enable_postgres ? var.postgres_deployment_mode : "disabled"
+}
+

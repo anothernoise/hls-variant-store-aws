@@ -47,16 +47,48 @@ def simulate_query_metrics(strategy: str, query_type: str, cohort_size: int = 10
     # Locus query with pruning:
     if query_type == "allele_frequency":
         base_bytes = 15 * 1024 * 1024 # 15 MB
-        latency_ms = 420.0 if strategy == "S3 Tables" else 480.0
+        latencies = {
+            "S3 Tables": 420.0,
+            "Custom S3 + Iceberg": 480.0,
+            "Delta Lake on S3": 450.0,
+            "Hail VDS (Spark)": 1250.0,
+            "Aurora PostgreSQL (Serverless)": 380.0,
+            "RDS PostgreSQL": 520.0
+        }
+        latency_ms = latencies.get(strategy, 480.0)
     elif query_type == "carrier_lookup":
-        base_bytes = 12 * 1024 * 1024 # 12 MB (columnar pruning on GT, DP, GQ)
-        latency_ms = 350.0 if strategy == "S3 Tables" else 410.0
+        base_bytes = 12 * 1024 * 1024 # 12 MB
+        latencies = {
+            "S3 Tables": 350.0,
+            "Custom S3 + Iceberg": 410.0,
+            "Delta Lake on S3": 380.0,
+            "Hail VDS (Spark)": 980.0,
+            "Aurora PostgreSQL (Serverless)": 45.0, # B-tree index seek
+            "RDS PostgreSQL": 65.0                  # B-tree index seek
+        }
+        latency_ms = latencies.get(strategy, 410.0)
     elif query_type == "gene_burden":
         base_bytes = 14 * 1024 * 1024 # 14 MB
-        latency_ms = 490.0 if strategy == "S3 Tables" else 560.0
+        latencies = {
+            "S3 Tables": 490.0,
+            "Custom S3 + Iceberg": 560.0,
+            "Delta Lake on S3": 510.0,
+            "Hail VDS (Spark)": 1100.0,
+            "Aurora PostgreSQL (Serverless)": 120.0, # GIN index scan
+            "RDS PostgreSQL": 180.0                  # GIN index scan
+        }
+        latency_ms = latencies.get(strategy, 560.0)
     elif query_type == "omop_join":
-        base_bytes = 18 * 1024 * 1024 # 18 MB (variants + clinical CSV scan)
-        latency_ms = 620.0 if strategy == "S3 Tables" else 710.0
+        base_bytes = 18 * 1024 * 1024 # 18 MB
+        latencies = {
+            "S3 Tables": 620.0,
+            "Custom S3 + Iceberg": 710.0,
+            "Delta Lake on S3": 660.0,
+            "Hail VDS (Spark)": 2100.0,
+            "Aurora PostgreSQL (Serverless)": 85.0,  # Native relational foreign key join
+            "RDS PostgreSQL": 130.0                  # Native relational foreign key join
+        }
+        latency_ms = latencies.get(strategy, 710.0)
     else:
         base_bytes = 20 * 1024 * 1024
         latency_ms = 500.0
@@ -65,7 +97,7 @@ def simulate_query_metrics(strategy: str, query_type: str, cohort_size: int = 10
     scale_factor = 1.0 + (cohort_size / 100.0)
     bytes_scanned = int(base_bytes * scale_factor)
     execution_time_ms = latency_ms * scale_factor
-    cost_usd = calculate_athena_cost(bytes_scanned)
+    cost_usd = calculate_athena_cost(bytes_scanned) if "PostgreSQL" not in strategy else 0.000010
 
     return {
         "strategy": strategy,
@@ -133,7 +165,14 @@ def main():
 
     logger.info(f"Running Variant Store Benchmarks (Cohort Size: {args.cohort_size})")
 
-    strategies = ["S3 Tables", "Custom S3 + Iceberg"]
+    strategies = [
+        "S3 Tables",
+        "Custom S3 + Iceberg",
+        "Delta Lake on S3",
+        "Hail VDS (Spark)",
+        "Aurora PostgreSQL (Serverless)",
+        "RDS PostgreSQL"
+    ]
     queries = ["allele_frequency", "carrier_lookup", "gene_burden", "omop_join"]
 
     query_results = []

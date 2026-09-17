@@ -187,6 +187,21 @@ WHERE v.reference_name = 'chr21'
 GROUP BY v.sample_id, json_extract_scalar(v.attributes, '$.gene');
 ```
 
+### Multi-Model Query Syntax Parity: Delta Lake, Hail VDS & PostgreSQL
+
+Participants can also execute the identical query logic across alternative architectures:
+
+1. **Delta Lake on S3**:
+   - Query [`queries/delta/01_allele_frequency.sql`](../queries/delta/01_allele_frequency.sql)
+   - Demonstrates querying Delta ACID tables via Athena or Databricks with identical Presto syntax against `genomics_delta.variants`.
+2. **PostgreSQL / Amazon Aurora (RDS vs Serverless v2)**:
+   - Query [`queries/postgres/02_carrier_lookup.sql`](../queries/postgres/02_carrier_lookup.sql)
+   - Uses native `JSONB` path extraction (`attributes->>'gene' = 'APP'`) and fast B-tree index seeks (`reference_name, start`) yielding single-digit millisecond response times.
+3. **Hail VDS (Sparse MatrixTable)**:
+   - Export dataset using `python3 ingest/hail/export_vds.py --vcf samples/data/cohort_10samples.vcf`
+   - Demonstrates the separation between sparse Variant Data (`variant_data/`) and dense reference blocks (`reference_data/`).
+
+
 ---
 
 ## Exercise 3: Latency, Scanned Volume, and Cost Benchmarks

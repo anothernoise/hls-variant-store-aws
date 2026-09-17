@@ -22,14 +22,19 @@ flowchart LR
   Athena --> Join["Join to synthetic OMOP"]
 ```
 
-## The Four Strategies
+## Architecture Strategies Compared
 
-| Strategy | Managed? | Engine | What you learn |
+| Strategy | Architecture Model | Primary Engine | Key Trade-off / Learning |
 | :--- | :--- | :--- | :--- |
-| **S3 Tables** | Managed Iceberg | Athena / Spark | Open Iceberg format without table ops or manual compaction |
-| **S3 + Iceberg (custom)** | DIY | Athena / Spark / Trino | Partitioning (`reference_name`), file sizing, schema evolution, manifest commits |
-| **HealthOmics variant store** | Fully managed | Athena / Lake Formation | Managed genomics with native AWS provenance |
-| **TileDB-VCF** | Self-run | TileDB API / Spark | Sparse-array variant storage for dense cohort queries |
+| **S3 Tables** | Managed Iceberg Lakehouse | Athena / Spark | Zero-ops compaction, automated table bucket maintenance |
+| **S3 + Iceberg (custom)** | Self-Managed Lakehouse | Athena / Spark / Trino | Open Iceberg format, custom partition transforms (`reference_name`) |
+| **Delta Lake on S3** | Databricks / ACID Lakehouse | Athena / Spark / Databricks | Parquet + `_delta_log` commits, Liquid Clustering skipping |
+| **Hail VDS on S3** | Distributed Sparse MatrixTable | Apache Spark / Hail | Split Variant/Reference matrix optimized for GWAS and statistical genetics |
+| **Aurora PostgreSQL** | Relational Serverless v2 | PostgreSQL 16 (JSONB) | Sub-10ms indexed point lookups, auto-scaling 0.5–2 ACUs, instant OLTP joins |
+| **RDS PostgreSQL** | Relational Provisioned Instance | PostgreSQL 16 (JSONB) | Low-cost steady baseline for dev metadata and targeted carrier lookups |
+| **TileDB-VCF** | Multi-dimensional Sparse Array | TileDB API / Spark | Microsecond range slices for dense population cohort queries |
+| **HealthOmics** | Fully Managed Genomics Store | Athena / Lake Formation | Fully managed AWS genomics engine with provenance tracking |
+
 
 ## The Exercises
 

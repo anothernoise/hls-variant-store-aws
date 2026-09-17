@@ -43,3 +43,45 @@ variable "tags" {
     DataClass = "Genomic-Synthetic"
   }
 }
+
+variable "enable_delta_lake" {
+  type        = bool
+  description = "Enable Delta Lake on S3 warehouse and Glue Catalog resources"
+  default     = true
+}
+
+variable "enable_hail_vds" {
+  type        = bool
+  description = "Enable Hail VDS on S3 bucket and Glue Catalog resources"
+  default     = true
+}
+
+variable "enable_postgres" {
+  type        = bool
+  description = "Enable PostgreSQL relational variant store (RDS instance or Aurora Serverless v2)"
+  default     = false
+}
+
+variable "postgres_deployment_mode" {
+  type        = string
+  description = "Deployment topology for PostgreSQL: 'aurora_serverless' (Aurora Serverless v2) or 'rds' (RDS Single/Multi-AZ instance)"
+  default     = "aurora_serverless"
+
+  validation {
+    condition     = contains(["aurora_serverless", "rds"], var.postgres_deployment_mode)
+    error_message = "postgres_deployment_mode must be either 'aurora_serverless' or 'rds'."
+  }
+}
+
+variable "postgres_db_name" {
+  type        = string
+  description = "Database name for PostgreSQL"
+  default     = "genomics_relational"
+}
+
+variable "postgres_admin_username" {
+  type        = string
+  description = "Master administrator username for PostgreSQL / Aurora"
+  default     = "genomics_admin"
+}
+

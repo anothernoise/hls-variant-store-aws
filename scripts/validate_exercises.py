@@ -212,6 +212,14 @@ def validate_exercise_2_local_sql_logic(reporter: ValidationReporter):
         "queries/s3tables/02_carrier_lookup.sql",
         "queries/s3tables/03_gene_burden_rollup.sql",
         "queries/s3tables/04_omop_phenotype_join.sql",
+        "queries/delta/01_allele_frequency.sql",
+        "queries/delta/02_carrier_lookup.sql",
+        "queries/delta/03_gene_burden_rollup.sql",
+        "queries/delta/04_omop_phenotype_join.sql",
+        "queries/postgres/01_allele_frequency.sql",
+        "queries/postgres/02_carrier_lookup.sql",
+        "queries/postgres/03_gene_burden_rollup.sql",
+        "queries/postgres/04_omop_phenotype_join.sql",
     ]
 
     for qf in query_files:
