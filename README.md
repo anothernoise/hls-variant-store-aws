@@ -10,16 +10,33 @@ trade-offs an SA weighs when storing and querying variants at scale.
 ## What you build
 
 ```mermaid
-flowchart LR
-  VCF["gVCF / VCF (synthetic)"] --> Ingest["Ingest + convert"]
-  Ingest --> S3T["S3 Tables (managed Iceberg)"]
-  Ingest --> Ice["S3 + Iceberg (custom)"]
-  Ingest --> HO["HealthOmics variant store"]
-  Ingest --> TDB["TileDB-VCF"]
-  S3T & Ice & HO --> LF["Lake Formation (CLS + KMS)"]
-  LF --> Athena["Athena / Presto SQL"]
-  Athena --> Bench["Benchmark: allele freq, carriers, N+1 ingest"]
-  Athena --> Join["Join to synthetic OMOP"]
+flowchart TB
+  subgraph Presentation ["1. Presentation Layer (Port 8050)"]
+    Dash["Plotly Dash Visual Explorer (app/app.py)"]
+    Switch["Online / Offline Switcher"]
+    Dash --- Switch
+  end
+
+  subgraph API ["2. FastAPI Middle Layer (Port 8000)"]
+    FastAPI["FastAPI Application (api/main.py)"]
+    Swagger["OpenAPI Swagger UI (/docs)"]
+    FastAPI --- Swagger
+  end
+
+  subgraph Engines ["3. Storage Engines & Lakehouse Tier"]
+    S3T["Amazon S3 Tables (Managed Iceberg)"]
+    Ice["Custom S3 + Iceberg"]
+    Delta["Delta Lake on S3"]
+    Hail["Hail VDS (Spark)"]
+    Aurora["Aurora PostgreSQL (Serverless v2)"]
+    RDS["Amazon RDS PostgreSQL"]
+    HO["AWS HealthOmics Variant Store"]
+    OMOP["OMOP CDM v5.4 Clinical Data"]
+  end
+
+  Dash -->|"REST API / HTTP"| FastAPI
+  FastAPI --> S3T & Ice & Delta & Hail & Aurora & RDS & HO
+  S3T & Ice & Delta & Hail & HO -->|"In-place Federated JOIN"| OMOP
 ```
 
 ## Architecture Strategies Compared
@@ -32,7 +49,6 @@ flowchart LR
 | **Hail VDS on S3** | Distributed Sparse MatrixTable | Apache Spark / Hail | Split Variant/Reference matrix optimized for GWAS and statistical genetics |
 | **Aurora PostgreSQL** | Relational Serverless v2 | PostgreSQL 16 (JSONB) | Sub-10ms indexed point lookups, auto-scaling 0.5–2 ACUs, instant OLTP joins |
 | **RDS PostgreSQL** | Relational Provisioned Instance | PostgreSQL 16 (JSONB) | Low-cost steady baseline for dev metadata and targeted carrier lookups |
-| **TileDB-VCF** | Multi-dimensional Sparse Array | TileDB API / Spark | Microsecond range slices for dense population cohort queries |
 | **HealthOmics** | Fully Managed Genomics Store | Athena / Lake Formation | Fully managed AWS genomics engine with provenance tracking |
 
 
@@ -45,7 +61,7 @@ Full step-by-step instructions are available in the **[Lab Exercises Guide](docs
 3. **Benchmark**: Measure latency, data scanned, Athena costs, and the $N+1$ incremental ingest speedup.
 4. **Join**: Correlate genomic variant carriers to synthetic [OMOP](https://github.com/anothernoise/hls-sa) clinical conditions without data movement.
 5. **Govern**: Enforce AWS Lake Formation column projection filters and KMS Customer Managed Keys.
-6. **Explore & Visualize**: Interactive multi-engine exploration web app (`app/app.py`) with Plotly Dash, supporting dynamic backend switching across 7 storage architectures.
+6. **Explore & Visualize**: Interactive multi-engine exploration web app (`app/app.py`) with Plotly Dash and FastAPI middle layer (`api/main.py`), supporting dynamic backend switching across 7 storage architectures.
 
 ## Architecture Decision Records (ADRs)
 
@@ -66,13 +82,21 @@ Real-world customer scenarios and architectural decision rubrics are documented 
 
 ```
 .
-├── app/                      # Interactive Plotly Dash multi-engine explorer web app
-│   ├── app.py                # Dash UI layout, multi-engine dropdown & 6 discovery tabs
-│   ├── backend.py            # Data access abstraction layer (Athena + deterministic fallback)
-│   └── requirements.txt      # Web app Python dependencies
+├── api/                      # FastAPI middle layer service (Port 8000)
+│   ├── main.py               # Application entry point, CORS, OpenAPI Swagger docs
+│   ├── schemas.py            # Pydantic validation schemas (telemetry, query, engines)
+│   └── routers/              # Modular REST routers (engines.py, benchmarks.py)
+├── app/                      # Interactive Plotly Dash multi-engine explorer web app (Port 8050)
+│   ├── app.py                # Dash UI layout, switcher, and discovery callbacks
+│   ├── api_client.py         # HTTP client connecting Dash UI to FastAPI middle layer
+│   ├── backend.py            # Dynamic per-engine SQL execution & Athena data access layer
+│   ├── metadata/             # Engine JSON configuration files (7 storage architectures)
+│   │   ├── loader.py         # Dynamic metadata loader
+│   │   └── *.json            # Schema & architecture profiles per engine
+│   └── requirements.txt      # Web app and API Python dependencies
 ├── deploy/terraform/         # Terraform IaC (S3 Tables, Iceberg, Athena, RDS, Aurora, HealthOmics, KMS)
 ├── docs/
-│   ├── architecture.md       # Solution design, trade-offs, and NFRs
+│   ├── architecture.md       # 3-tier architecture, trade-offs, and NFRs
 │   ├── summary.md            # SA evaluation matrix, decision tree, Well-Architected pillars
 │   ├── exercises.md          # Step-by-step lab exercise guide (Exercises 1 through 6)
 │   ├── sa_case_studies.md    # Real-world SA case studies (1 solved, 2 challenge tasks)
@@ -85,56 +109,54 @@ Real-world customer scenarios and architectural decision rubrics are documented 
 │   ├── custom_iceberg/       # Partition-aware loader for Custom S3 + Iceberg
 │   └── healthomics/          # Lifecycle & async VCF import manager for AWS HealthOmics
 ├── queries/
-│   ├── s3tables/             # Athena Presto/Trino SQL queries for S3 Tables
-│   └── custom_iceberg/       # Athena Presto/Trino SQL queries for Custom Iceberg
+│   ├── s3tables/             # Athena SQL queries for S3 Tables
+│   ├── custom_iceberg/       # Athena SQL queries for Custom Iceberg
+│   ├── delta/                # Athena SQL queries for Delta Lake
+│   └── postgres/             # PostgreSQL JSONB queries for Aurora / RDS
 ├── scripts/
+│   ├── manage_infra.py       # Engine-selective deployment, destruction & status CLI
 │   └── validate_exercises.py # Automated validation CLI (local-mode and live aws-mode)
 ├── benchmarks/
 │   ├── benchmark_runner.py   # Latency, scan volume, cost & N+1 speedup benchmark harness
-│   ├── live_performance_report.md # Empirical Athena execution & cost telemetry
-│   └── README.md             # Benchmark methodology and formulas
+│   └── live_performance_report.md # Empirical Athena execution & cost telemetry
 ├── governance/
 │   └── lakeformation_policy.md # Threat model and column access control matrix
-└── tests/                    # Unit test suite for loaders and benchmark calculations
+└── tests/                    # TDD unit test suite (54 tests passing)
 ```
 
 ## Quick Start & Verification
 
-### 1. Generate Synthetic Data
+### 1. Install Dependencies
+```bash
+pip install -r app/requirements.txt
+```
+
+### 2. Generate Synthetic Data
 ```bash
 python3 samples/generate_synthetic_data.py
 ```
 
-### 2. Run Automated Lab Validation (Offline / Local)
+### 3. Launch FastAPI Middle Layer Service (Port 8000)
 ```bash
-python3 scripts/validate_exercises.py --local-mode
+python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+# OpenAPI Swagger Documentation: http://localhost:8000/docs
+# Interactive ReDoc: http://localhost:8000/redoc
 ```
 
-### 3. Launch Interactive Plotly Dash Multi-Engine Explorer
+### 4. Launch Interactive Dash Visualization UI (Port 8050)
 ```bash
-pip install -r app/requirements.txt
 python3 app/app.py
-# Open http://localhost:8050 to dynamically switch between all 7 backend storage engines
+# Open http://localhost:8050 to explore the cohort and switch between all 7 engines
 ```
 
-### 4. Run Unit Tests & Local Benchmarks
+### 5. Run Full Unit Test Suite (TDD)
 ```bash
-python3 -m unittest discover tests
-python3 benchmarks/benchmark_runner.py --cohort-size 10
+python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-### 5. Deploy Infrastructure (AWS)
+### 6. Inspect Live Infrastructure Status
 ```bash
-cd deploy/terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
-```
-
-### 6. Validate Live Deployment (AWS Athena & KMS)
-```bash
-python3 scripts/validate_exercises.py --aws-mode
+python3 scripts/manage_infra.py --action status --profile default
 ```
 
 > **Synthetic data only — genomic data is inherently identifying; never commit real data.**
