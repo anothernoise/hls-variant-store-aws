@@ -17,12 +17,19 @@ import sys
 import time
 from typing import Any, Dict, List, Tuple
 import pandas as pd
-
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+try:
+    from metadata.loader import load_all_engine_metadata, get_supported_engines
+except (ImportError, ModuleNotFoundError):
+    from app.metadata.loader import load_all_engine_metadata, get_supported_engines
 
 
 class VariantStoreBackend:
-    SUPPORTED_ENGINES = [
+    ENGINE_CONFIGS: Dict[str, Dict[str, Any]] = load_all_engine_metadata()
+    SUPPORTED_ENGINES: List[str] = get_supported_engines() or [
         "Amazon S3 Tables",
         "Custom S3 + Iceberg",
         "Delta Lake on S3",
@@ -251,82 +258,20 @@ class VariantStoreBackend:
         }
         return df, telemetry
 
-    @staticmethod
-    def get_store_metadata(engine: str) -> Dict[str, str]:
+    @classmethod
+    def get_engine_config(cls, engine: str) -> Dict[str, Any]:
+        """Retrieves full engine JSON configuration."""
+        if not cls.ENGINE_CONFIGS:
+            cls.ENGINE_CONFIGS = load_all_engine_metadata()
+        if engine in cls.ENGINE_CONFIGS:
+            return cls.ENGINE_CONFIGS[engine]
+        return cls.ENGINE_CONFIGS.get("Amazon S3 Tables", next(iter(cls.ENGINE_CONFIGS.values()), {}))
+
+    @classmethod
+    def get_store_metadata(cls, engine: str) -> Dict[str, str]:
         """Returns physical storage architecture metadata for the selected engine."""
-        metadata_map = {
-            "Amazon S3 Tables": {
-                "Engine Class": "Managed Lakehouse (Zero-Ops)",
-                "Table Format": "Apache Iceberg v2",
-                "Catalog Integration": "Amazon S3 Tables Catalog (via Glue Federated aws:s3tables)",
-                "Physical Location": "s3tablescatalog/genomics/variants",
-                "Partitioning Scheme": "identity(reference_name)",
-                "Compression / Format": "Parquet / Snappy",
-                "Compaction Maintenance": "Automated Serverless Continuous Bin-Packing",
-                "Security & Governance": "KMS Customer-Managed Key + S3 Table Bucket Policy"
-            },
-            "Custom S3 + Iceberg": {
-                "Engine Class": "Self-Managed Open Lakehouse",
-                "Table Format": "Apache Iceberg v2",
-                "Catalog Integration": "AWS Glue Data Catalog (genomics_custom_iceberg)",
-                "Physical Location": "s3://hls-variant-custom-iceberg/warehouse/variants/",
-                "Partitioning Scheme": "reference_name (Hive-compatible hierarchy)",
-                "Compression / Format": "Parquet / ZSTD (Level 7)",
-                "Compaction Maintenance": "Scheduled Glue Job / Athena OPTIMIZE Table",
-                "Security & Governance": "AWS Lake Formation v3 (Column-level grants) + KMS CMK"
-            },
-            "Delta Lake on S3": {
-                "Engine Class": "Databricks / Unified ACID Lakehouse",
-                "Table Format": "Delta Lake Protocol 3.x",
-                "Catalog Integration": "AWS Glue Data Catalog (genomics_delta)",
-                "Physical Location": "s3://hls-variant-delta-lake/delta/variants/",
-                "Partitioning Scheme": "reference_name + Liquid Clustering (start, sample_id)",
-                "Compression / Format": "Parquet + _delta_log JSON Actions",
-                "Compaction Maintenance": "OPTIMIZE variants ZORDER BY (start, sample_id)",
-                "Security & Governance": "IAM Least Privilege + KMS CMK"
-            },
-            "Hail VDS (Spark)": {
-                "Engine Class": "Distributed Sparse MatrixTable (Population Genetics)",
-                "Table Format": "Hail Variant Dataset (VDS) 0.2",
-                "Catalog Integration": "AWS Glue Data Catalog (genomics_hail_vds)",
-                "Physical Location": "s3://hls-variant-hail-vds/vds/variant_data/",
-                "Partitioning Scheme": "Chromosome interval range sharding across Spark workers",
-                "Compression / Format": "Sparse MatrixTable / Block-compressed Parquet",
-                "Compaction Maintenance": "Spark RDD repartitions / EMR cluster auto-scaling",
-                "Security & Governance": "EMR Security Configuration + S3 KMS encryption"
-            },
-            "Amazon Aurora PostgreSQL (Serverless v2)": {
-                "Engine Class": "Relational Cloud-Native OLTP / Point Query Engine",
-                "Table Format": "PostgreSQL 16 Heap Tables + Indexes",
-                "Catalog Integration": "PostgreSQL System Catalogs (pg_class, information_schema)",
-                "Physical Location": "Aurora Cluster Storage Volume (6-way replicated across 3 AZs)",
-                "Partitioning Scheme": "B-Tree Composite (reference_name, start) + GIN (attributes jsonb)",
-                "Compression / Format": "PostgreSQL 8KB Database Buffer Pages",
-                "Compaction Maintenance": "Automated VACUUM ANALYZE + Aurora self-healing storage",
-                "Security & Governance": "VPC Private Subnets + AWS Secrets Manager + KMS CMK"
-            },
-            "Amazon RDS PostgreSQL": {
-                "Engine Class": "Dedicated Relational Instance",
-                "Table Format": "PostgreSQL 16 Heap Tables",
-                "Catalog Integration": "PostgreSQL System Catalogs",
-                "Physical Location": "Amazon EBS gp3 Provisioned Volume",
-                "Partitioning Scheme": "B-Tree Index on (reference_name, start)",
-                "Compression / Format": "PostgreSQL 8KB Database Pages",
-                "Compaction Maintenance": "Standard Autovacuum Worker",
-                "Security & Governance": "VPC Security Groups + Secrets Manager + KMS CMK"
-            },
-            "AWS HealthOmics Variant Store": {
-                "Engine Class": "Turnkey Managed Genomics Variant Store",
-                "Table Format": "AWS Proprietary Variant Store",
-                "Catalog Integration": "AWS Glue Data Catalog (auto-mapped omics_* table)",
-                "Physical Location": "AWS HealthOmics Managed Subsystem",
-                "Partitioning Scheme": "GRCh38 coordinate indices (automatic chromosome sharding)",
-                "Compression / Format": "Managed normalized variant blocks",
-                "Compaction Maintenance": "Fully Managed by AWS HealthOmics Service",
-                "Security & Governance": "IAM Omics Service Role + KMS CMK"
-            }
-        }
-        return metadata_map.get(engine, metadata_map["Amazon S3 Tables"])
+        config = cls.get_engine_config(engine)
+        return config.get("architecture", {})
 
     def get_raw_store_data(
         self,
@@ -337,16 +282,9 @@ class VariantStoreBackend:
         limit: int = 100
     ) -> Tuple[pd.DataFrame, Dict[str, Any], str]:
         """Directly retrieves raw store records with live SQL and schema-accurate fallback."""
-        db_map = {
-            "Amazon S3 Tables": "s3tablescatalog/genomics",
-            "Custom S3 + Iceberg": "genomics_custom_iceberg",
-            "Delta Lake on S3": "genomics_delta",
-            "Hail VDS (Spark)": "genomics_hail_vds",
-            "Amazon Aurora PostgreSQL (Serverless v2)": "public",
-            "Amazon RDS PostgreSQL": "public",
-            "AWS HealthOmics Variant Store": "genomics_healthomics",
-        }
-        db_name = db_map.get(engine, "genomics_custom_iceberg")
+        config = self.get_engine_config(engine)
+        db_name = config.get("database", "genomics_custom_iceberg")
+        var_table = config.get("table_name", "variants")
 
         where_clauses = []
         if table_name == "variants":
@@ -356,7 +294,7 @@ class VariantStoreBackend:
                 where_clauses.append(f"sample_id = '{sample_id}'")
             
             clause_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            sql = f"SELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, attributes FROM {db_name}.variants{clause_str} ORDER BY start ASC LIMIT {limit};"
+            sql = f"SELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, attributes FROM {db_name}.{var_table}{clause_str} ORDER BY start ASC LIMIT {limit};"
             
             df = self.variants_df.copy() if not self.variants_df.empty else self._get_fallback_dataframe("carriers")
             if not df.empty:
@@ -366,12 +304,16 @@ class VariantStoreBackend:
                     df = df[df["sample_id"] == sample_id]
                 df = df.head(limit)
             
+            tel_prof = config.get("telemetry_profile", {})
+            lat_ms = tel_prof.get("typical_latency_ms", 38.0 if "PostgreSQL" in engine else 420.0)
+            bytes_per_row = tel_prof.get("scanned_bytes_per_row", 0 if "PostgreSQL" in engine else 128)
+
             telemetry = {
                 "engine": engine,
-                "table": f"{db_name}.variants",
+                "table": f"{db_name}.{var_table}",
                 "rows_retrieved": len(df),
-                "latency_ms": 38.0 if "PostgreSQL" in engine else 420.0,
-                "scanned_bytes": 0 if "PostgreSQL" in engine else len(df) * 128
+                "latency_ms": lat_ms,
+                "scanned_bytes": len(df) * bytes_per_row
             }
             return df, telemetry, sql
 

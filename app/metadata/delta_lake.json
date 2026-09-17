@@ -1,0 +1,21 @@
+{
+  "id": "delta_lake",
+  "name": "Delta Lake on S3",
+  "display_order": 3,
+  "database": "genomics_delta",
+  "table_name": "variants",
+  "architecture": {
+    "Engine Class": "Databricks / Unified ACID Lakehouse",
+    "Table Format": "Delta Lake Protocol 3.x",
+    "Catalog Integration": "AWS Glue Data Catalog (genomics_delta)",
+    "Physical Location": "s3://hls-variant-delta-lake/delta/variants/",
+    "Partitioning Scheme": "reference_name + Liquid Clustering (start, sample_id)",
+    "Compression / Format": "Parquet + _delta_log JSON Actions",
+    "Compaction Maintenance": "OPTIMIZE variants ZORDER BY (start, sample_id)",
+    "Security & Governance": "IAM Least Privilege + KMS CMK"
+  },
+  "telemetry_profile": {
+    "typical_latency_ms": 440.0,
+    "scanned_bytes_per_row": 128
+  }
+}

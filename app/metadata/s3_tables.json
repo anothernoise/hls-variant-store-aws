@@ -1,0 +1,21 @@
+{
+  "id": "s3_tables",
+  "name": "Amazon S3 Tables",
+  "display_order": 1,
+  "database": "s3tablescatalog/genomics",
+  "table_name": "variants",
+  "architecture": {
+    "Engine Class": "Managed Lakehouse (Zero-Ops)",
+    "Table Format": "Apache Iceberg v2",
+    "Catalog Integration": "Amazon S3 Tables Catalog (via Glue Federated aws:s3tables)",
+    "Physical Location": "s3tablescatalog/genomics/variants",
+    "Partitioning Scheme": "identity(reference_name)",
+    "Compression / Format": "Parquet / Snappy",
+    "Compaction Maintenance": "Automated Serverless Continuous Bin-Packing",
+    "Security & Governance": "KMS Customer-Managed Key + S3 Table Bucket Policy"
+  },
+  "telemetry_profile": {
+    "typical_latency_ms": 420.0,
+    "scanned_bytes_per_row": 128
+  }
+}

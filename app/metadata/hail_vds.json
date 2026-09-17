@@ -1,0 +1,21 @@
+{
+  "id": "hail_vds",
+  "name": "Hail VDS (Spark)",
+  "display_order": 4,
+  "database": "genomics_hail_vds",
+  "table_name": "variant_data",
+  "architecture": {
+    "Engine Class": "Distributed Sparse MatrixTable (Population Genetics)",
+    "Table Format": "Hail Variant Dataset (VDS) 0.2",
+    "Catalog Integration": "AWS Glue Data Catalog (genomics_hail_vds)",
+    "Physical Location": "s3://hls-variant-hail-vds/vds/variant_data/",
+    "Partitioning Scheme": "Chromosome interval range sharding across Spark workers",
+    "Compression / Format": "Sparse MatrixTable / Block-compressed Parquet",
+    "Compaction Maintenance": "Spark RDD repartitions / EMR cluster auto-scaling",
+    "Security & Governance": "EMR Security Configuration + S3 KMS encryption"
+  },
+  "telemetry_profile": {
+    "typical_latency_ms": 520.0,
+    "scanned_bytes_per_row": 128
+  }
+}
