@@ -6,11 +6,72 @@
 
 ---
 
-## Architecture Overview
+## 1. Problem Statement & Architectural Context
 
-This bootcamp lab guides you through building, querying, benchmarking, and governing a production-grade **Genomic Variant Store** on AWS using two modern architectures:
-1. **Amazon S3 Tables**: Managed serverless Iceberg table buckets with automated continuous compaction.
-2. **Custom S3 + Apache Iceberg**: Self-managed Amazon S3 object warehouse with AWS Glue Data Catalog and open-standard Iceberg metadata.
+### 1.1 Precision Medicine & The Population-Scale Genomic Data Explosion
+Next-Generation Sequencing (NGS) and Whole Genome Sequencing (WGS) have transitioned from specialized academic research into clinical healthcare diagnostics, population biobanks (e.g., UK Biobank, NIH All of Us, Genomics England), and pharmaceutical target discovery. 
+
+A single human genome produces **~3.5 to 5 million variant calls** (SNVs and Indels). When scaled to national biobanks or health system cohorts (100,000 to 1,000,000 participants):
+- A cohort variant matrix balloons to **hundreds of billions of data points** ($10^5 \text{ samples} \times 4 \times 10^6 \text{ variants} \approx 4 \times 10^{11} \text{ calls}$).
+- Raw uncompressed VCF/BCF flat files consume **multi-petabytes to exabytes** of raw cloud storage.
+- File-based bioinformatic pipelines (e.g., Tabix indexed VCFs on network storage or basic S3 buckets) collapse under ad-hoc analytical workloads: finding carriers of a pathogenic mutation across 100K genomes requires downloading and decompressing terabytes of data over hours or days.
+
+### 1.2 The Five Core Technical & Architectural Challenges
+
+#### Challenge 1: The $N+1$ Ingestion Scaling Crisis & Write Amplification
+Traditional bioinformatics relies on **joint genotyping** or monolithic multi-sample VCF/Hail MatrixTable regeneration. 
+- When sample $N+1$ arrives from the sequencing center, updating the cohort variant matrix historically required re-processing all prior $N$ samples.
+- This creates an **$O(N)$ to $O(N^2)$ write amplification bottleneck**, incurring massive compute costs, pipeline lockouts, and multi-day batch delays for every sequencer batch.
+- **Architectural Requirement**: The variant store must support **$O(1)$ additive, lock-free incremental commits** where adding sample $N+1$ appends only its own partition blocks and updates table metadata without touching existing data files.
+
+#### Challenge 2: The S3 "Small Files" Compaction Dilemma
+Sequencing centers upload samples continuously or in small batches. When individual sample VCFs are converted to columnar Parquet files:
+- Each upload produces tens to hundreds of small objects (e.g., 200 KB to 5 MB per chromosome).
+- Over thousands of samples, S3 accumulates **millions of small files**.
+- Query engines like Amazon Athena (Trino/Presto) or Apache Spark spend **80–90% of query execution time** performing S3 `ListObjectsV2` and `GetObject` metadata operations rather than processing actual genomic records.
+- **Architectural Requirement**: The storage tier must either provide **automated, serverless bin-packing compaction** (e.g., Amazon S3 Tables Table Buckets) or schedule robust asynchronous compaction jobs (e.g., Apache Iceberg/Delta maintenance).
+
+#### Challenge 3: The Cross-Modal Divide (Genomics $\leftrightarrow$ Clinical EHR / OMOP CDM)
+Genomic variants have limited clinical value in isolation; their diagnostic and therapeutic utility depends on correlating them with patient phenotypes, medical histories, diagnoses, and lab results.
+- **The Silo**: Clinical records reside in relational EHR data models (e.g., OMOP CDM v5.4, FHIR, Epic/Cerner relational warehouses), while genomic callsets reside in bioinformatics file formats (VCF, CRAM, Hail MatrixTable).
+- Traditional architectures require heavy ETL pipelines to extract, re-index, and duplicate genomic data into relational databases or vice versa, creating stale data copies and high infrastructure maintenance.
+- **Architectural Requirement**: Enable **in-place, federated zero-ETL SQL joins** between multi-sample genomic lakehouses (Iceberg/Delta) and clinical OMOP tables (`person`, `condition_occurrence`) directly within Amazon Athena or Aurora PostgreSQL.
+
+#### Challenge 4: Protected Health Information (PHI) & Genetic Re-identification
+Under HIPAA, GDPR, and the Genetic Information Nondiscrimination Act (GINA), genomic sequencing data is considered **inherently re-identifying**. 
+- A patient can be uniquely identified from fewer than 50 statistically independent SNPs.
+- Scientific research teams require access to population-level allele frequencies and variant annotations without exposing patient identity.
+- Clinical geneticists, conversely, require full unmasked access to identify specific mutation carriers for diagnostic reporting.
+- **Architectural Requirement**: Implement **fine-grained, column-level access control (CLS)** and **KMS Customer Managed Key (CMK)** encryption where the storage layer dynamically redacts re-identifying columns (`sample_id`, `genotype`, `allele_depth`) based on caller IAM roles, eliminating the need to maintain duplicate "anonymized" data copies.
+
+#### Challenge 5: Multi-Engine Latency SLAs & The Architectural Trade-off Dilemma
+There is no single "one-size-fits-all" storage format for genomics. A Solution Architect must balance conflicting workload requirements:
+1. **Interactive Clinical Portals**: Require sub-50ms point lookups on single variant loci (`chr21:25891796 A>G`), which row-based or B-tree indexed databases (Amazon Aurora PostgreSQL) excel at.
+2. **Population-Scale Cohort Analytics**: Require scanning billions of rows for allele frequency rollups and gene burden calculations, which columnar lakehouses (Amazon S3 Tables, Custom Iceberg, Delta Lake) excel at.
+3. **Statistical Genetics & GWAS**: Require distributed matrix mathematics and LD pruning, which Hail VDS on Spark excels at.
+4. **Turnkey AWS Managed Pipelines**: Teams lacking data engineering resources may favor fully managed AWS HealthOmics Variant Stores, trading open format portability and lower S3 storage costs for zero-maintenance VCF ingestion.
+
+---
+
+## 2. Learning Objectives & Measurable Success Criteria
+
+By completing this bootcamp lab, Solution Architects, Data Engineers, and Bioinformaticians will achieve the following core competencies:
+
+| Domain | Competency | Measurable Outcome |
+| :--- | :--- | :--- |
+| **Lakehouse Architecture** | Deploy and configure **Amazon S3 Tables** and **Custom S3 + Iceberg** | Verify automated compaction policies and Glue catalog table creation via Terraform. |
+| **Incremental Ingestion** | Master $O(1)$ additive $N+1$ genomic commits | Ingest sample batch 1 (samples 1–5) followed by batch 2 (samples 6–10) with zero rewrite locks. |
+| **Analytical Query Parity** | Execute standardized Presto/Trino SQL across engines | Validate identical numerical results for Allele Frequency, Carrier Lookup, and Gene Burden. |
+| **Multimodal Federation** | Perform zero-ETL joins between genomics and OMOP CDM | Correlate pathogenic *APP* carriers directly with Alzheimer's Disease diagnoses in `clinical_omop`. |
+| **Healthcare Governance** | Enforce column-level security and KMS encryption | Verify that Lake Formation blocks researcher IAM roles from viewing `sample_id` and `genotype`. |
+| **Multi-Engine Benchmarking** | Measure latency, scanned bytes, and cost across 7 engines | Generate live empirical benchmark reports comparing S3 Tables, Iceberg, Delta, Hail, Aurora, RDS, and HealthOmics. |
+| **Interactive Visualization** | Deploy and operate the **HLS SA Bootcamp App** (Plotly Dash) | Dynamically switch between 7 storage backends and inspect raw table records via the **Store Data Explorer**. |
+
+---
+
+## 3. Architecture Overview
+
+This bootcamp lab guides you through building, querying, benchmarking, and governing a production-grade **Genomic Variant Store** on AWS across 7 modern architectures:
 
 ```mermaid
 flowchart TD
@@ -19,15 +80,20 @@ flowchart TD
         OMOP_RAW["OMOP Clinical Data<br/>(person.csv, condition.csv)"]
     end
 
-    subgraph Storage["2. Storage & Lakehouse Tier"]
+    subgraph Storage["2. Storage & Lakehouse Tier (7 Engine Architectures)"]
         S3T["Amazon S3 Tables<br/>(Table Bucket: genomics.variants)<br/>• Automated Bin-Packing Compaction"]
         S3C["Custom S3 Warehouse<br/>(s3://.../warehouse/variants/)<br/>• Partitioned by reference_name"]
+        DELTA["Delta Lake on S3<br/>(s3://.../delta/variants/)<br/>• ACID _delta_log & Liquid Clustering"]
+        HAIL["Hail VDS on S3<br/>(s3://.../vds/variant_data/)<br/>• Split Sparse MatrixTable"]
+        AURORA["Amazon Aurora PostgreSQL<br/>(Serverless v2 0.5–2 ACUs)<br/>• Sub-50ms B-tree + JSONB GIN"]
+        RDS["Amazon RDS PostgreSQL<br/>(db.t4g fixed instance)<br/>• Baseline Dev Metadata"]
+        OMICS["AWS HealthOmics Variant Store<br/>(Managed GRCh38 Store)<br/>• Turnkey VCF ingestion"]
         S3O["Clinical S3 Bucket<br/>(clinical_omop database)"]
     end
 
     subgraph Security["3. Governance & Security"]
         KMS["KMS Customer-Managed Key<br/>(alias/hls-variant-store-dev)"]
-        LF["AWS Lake Formation<br/>• Column Projection Filters (PHI)"]
+        LF["AWS Lake Formation v3<br/>• Column Projection Filters (PHI)"]
         IAM["IAM Least-Privilege Roles<br/>(Analyst vs Clinical Steward)"]
     end
 
@@ -36,32 +102,38 @@ flowchart TD
         FED["Glue Federated Catalog<br/>(aws:s3tables)"]
     end
 
-    subgraph Exercises["5. Bootcamp Exercises"]
+    subgraph UI_UX["5. Visualization & Exploration"]
+        DASH["HLS SA Bootcamp App (Plotly Dash)<br/>• Dynamic Engine Switching (7 backends)<br/>• 6 Interactive Discovery Tabs<br/>• Store Data Explorer with Raw Inspection"]
+    end
+
+    subgraph Exercises["6. Bootcamp Exercises"]
         E1["Ex 1: N+1 Incremental Ingestion"]
         E2["Ex 2: Analytical Query Parity"]
         E3["Ex 3: Latency & Cost Benchmarks"]
         E4["Ex 4: Genotype ↔ OMOP Join"]
         E5["Ex 5: PHI Column Governance"]
+        E6["Ex 6: Dash UI & HealthOmics Exploration"]
     end
 
-    VCF -->|Ingest| S3T
-    VCF -->|Ingest| S3C
-    OMOP_RAW -->|Upload| S3O
+    VCF -->|Ingest| S3T & S3C & DELTA & HAIL & AURORA & RDS & OMICS
+    OMOP_RAW -->|Upload| S3O & AURORA
 
     KMS -.-> Storage
     LF -.-> Storage
     IAM -.-> ATHENA
 
     S3T --> FED --> ATHENA
-    S3C --> ATHENA
+    S3C & DELTA & HAIL & OMICS --> ATHENA
     S3O --> ATHENA
 
-    ATHENA --> Exercises
+    ATHENA --> DASH
+    AURORA & RDS --> DASH
+    DASH --> Exercises
 ```
 
 ---
 
-## Lab Environment Verification & Setup
+## 4. Lab Environment Verification & Setup
 
 Before starting the exercises, verify your local environment and deployed AWS resources.
 
