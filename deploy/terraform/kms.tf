@@ -20,7 +20,7 @@ resource "aws_kms_key" "genomics" {
         Sid    = "AllowS3TablesMaintenanceService"
         Effect = "Allow"
         Principal = {
-          Service = "tables.s3.amazonaws.com"
+          Service = "maintenance.s3tables.amazonaws.com"
         }
         Action = [
           "kms:Decrypt",
@@ -35,13 +35,10 @@ resource "aws_kms_key" "genomics" {
         }
       },
       {
-        Sid    = "AllowAthenaQueryExecutionAndS3"
+        Sid    = "AllowS3ServiceAccess"
         Effect = "Allow"
         Principal = {
-          Service = [
-            "athena.amazonaws.com",
-            "s3.amazonaws.com"
-          ]
+          Service = "s3.amazonaws.com"
         }
         Action = [
           "kms:Decrypt",

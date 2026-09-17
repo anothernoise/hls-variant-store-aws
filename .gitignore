@@ -5,6 +5,9 @@ node_modules/
 __pycache__/
 .terraform/
 *.tfstate*
+*.tfplan*
+tfplan
+.terraform.lock.hcl
 custom_iceberg_warehouse/
 *.parquet
 benchmarks/*.json

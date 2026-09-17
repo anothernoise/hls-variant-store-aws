@@ -91,7 +91,7 @@ resource "aws_iam_policy" "ingestion_s3tables" {
 
 resource "aws_iam_role_policy_attachment" "ingestion_attach" {
   role       = aws_iam_role.ingestion.name
-  policy_arn = aws_iam_policy.ingestion_s3tables.policy_arn
+  policy_arn = aws_iam_policy.ingestion_s3tables.arn
 }
 
 # Analyst / Genomic Researcher Role for executing federated Athena / OMOP queries
@@ -205,7 +205,7 @@ resource "aws_iam_policy" "analyst_query" {
 
 resource "aws_iam_role_policy_attachment" "analyst_attach" {
   role       = aws_iam_role.analyst.name
-  policy_arn = aws_iam_policy.analyst_query.policy_arn
+  policy_arn = aws_iam_policy.analyst_query.arn
 }
 
 # Clinical Geneticist / Data Steward Role (PHI Privileged)
@@ -319,5 +319,5 @@ resource "aws_iam_policy" "clinical_steward_policy" {
 
 resource "aws_iam_role_policy_attachment" "clinical_steward_attach" {
   role       = aws_iam_role.clinical_steward.name
-  policy_arn = aws_iam_policy.clinical_steward_policy.policy_arn
+  policy_arn = aws_iam_policy.clinical_steward_policy.arn
 }

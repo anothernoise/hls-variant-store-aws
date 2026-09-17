@@ -16,8 +16,9 @@ resource "aws_lakeformation_resource" "iceberg_warehouse" {
 # 1. Genomic Researcher Role Permissions:
 # Graded Column-Level Security (Excludes re-identifying columns: sample_id, genotype, allele_depth)
 resource "aws_lakeformation_permissions" "researcher_column_filter" {
-  count     = var.enable_lakeformation ? 1 : 0
-  principal = aws_iam_role.analyst.arn
+  count       = var.enable_lakeformation ? 1 : 0
+  principal   = aws_iam_role.analyst.arn
+  permissions = ["SELECT"]
 
   table_with_columns {
     database_name = aws_glue_catalog_database.genomics_custom_iceberg.name
@@ -35,20 +36,19 @@ resource "aws_lakeformation_permissions" "researcher_column_filter" {
       "attributes",
       "cohort_id"
     ]
-    permissions = ["SELECT"]
   }
 }
 
 # 2. Clinical Geneticist / Data Steward Permissions:
 # Full access to all columns including sensitive PHI (individual genotype calls and sample linkage)
 resource "aws_lakeformation_permissions" "clinical_steward_full_access" {
-  count     = var.enable_lakeformation ? 1 : 0
-  principal = aws_iam_role.clinical_steward.arn
+  count       = var.enable_lakeformation ? 1 : 0
+  principal   = aws_iam_role.clinical_steward.arn
+  permissions = ["SELECT", "DESCRIBE"]
 
   table_with_columns {
     database_name = aws_glue_catalog_database.genomics_custom_iceberg.name
     name          = aws_glue_catalog_table.custom_iceberg_variants.name
     wildcard      = true
-    permissions   = ["SELECT", "DESCRIBE"]
   }
 }
