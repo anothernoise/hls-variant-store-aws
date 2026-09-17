@@ -154,7 +154,16 @@ python3 app/app.py
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-### 6. Inspect Live Infrastructure Status
+### 6. Storage Engine Health Checks (IETF RFC Format)
+```bash
+# Cluster-wide summary health probe:
+curl -s http://localhost:8000/api/v1/engines/health/all | jq .
+
+# Granular single-engine health probe:
+curl -s http://localhost:8000/api/v1/engines/s3_tables/health | jq .
+```
+
+### 7. Inspect Live Infrastructure Status
 ```bash
 python3 scripts/manage_infra.py --action status --profile default
 ```

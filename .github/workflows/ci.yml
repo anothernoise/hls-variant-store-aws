@@ -92,3 +92,11 @@ jobs:
         run: |
           python scripts/validate_exercises.py --local-mode
 
+      - name: Verify Live Engine Health & API Endpoints
+        run: |
+          python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 &
+          sleep 3
+          curl -f http://127.0.0.1:8000/api/v1/health
+          curl -f "http://127.0.0.1:8000/api/v1/engines/health/all?offline=true"
+
+

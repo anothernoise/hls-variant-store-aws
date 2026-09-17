@@ -153,6 +153,7 @@ content = html.Div([
         dbc.Tab(label="🏥 4. Multimodal OMOP Clinical Join", tab_id="tab-omop"),
         dbc.Tab(label="⚡ 5. Multi-Engine Latency Benchmarks", tab_id="tab-benchmarks"),
         dbc.Tab(label="🔍 6. Store Data Explorer", tab_id="tab-raw"),
+        dbc.Tab(label="🩺 7. Engine Health & Status", tab_id="tab-health"),
     ], id="tabs-main", active_tab="tab-af", className="mb-3 nav-fill border-bottom"),
     html.Div(id="tab-content", className="mb-4")
 ])
@@ -547,6 +548,97 @@ def render_tab_content(active_tab, engine, is_online):
             ])
         ], className="shadow-sm border-0")
 
+    elif active_tab == "tab-health":
+        summary = api_client.get_all_engines_health(offline=offline)
+        cluster_status = summary.get("status", "healthy").upper()
+        total_engines = summary.get("total_engines", 7)
+        active_count = summary.get("active_engines", 6)
+        not_deployed_count = summary.get("not_deployed_engines", 1)
+        probe_latency = summary.get("probe_latency_ms", 0.0)
+        engines_dict = summary.get("engines", {})
+
+        status_color = "success" if cluster_status == "HEALTHY" else "warning"
+
+        return dbc.Card([
+            dbc.CardHeader([
+                html.Span("AWS Genomic Storage Engines — Cluster Health & Readiness", className="fw-bold me-2"),
+                mode_badge,
+                dbc.Badge(f"Cluster: {cluster_status}", color=status_color, className="float-end p-2")
+            ], className="bg-white border-bottom py-3"),
+            dbc.CardBody([
+                dbc.Row([
+                    dbc.Col([
+                        html.Div([
+                            html.Small("Cluster Overall Status", className="text-muted d-block fw-semibold"),
+                            html.H4(cluster_status, className=f"text-{status_color} fw-bold mb-0")
+                        ], className="p-3 bg-light rounded border text-center")
+                    ], md=3),
+                    dbc.Col([
+                        html.Div([
+                            html.Small("Active / Available Engines", className="text-muted d-block fw-semibold"),
+                            html.H4(f"{active_count} / {total_engines}", className="text-success fw-bold mb-0")
+                        ], className="p-3 bg-light rounded border text-center")
+                    ], md=3),
+                    dbc.Col([
+                        html.Div([
+                            html.Small("Not Deployed Engines", className="text-muted d-block fw-semibold"),
+                            html.H4(f"{not_deployed_count}", className="text-warning fw-bold mb-0")
+                        ], className="p-3 bg-light rounded border text-center")
+                    ], md=3),
+                    dbc.Col([
+                        html.Div([
+                            html.Small("Total Probe Duration", className="text-muted d-block fw-semibold"),
+                            html.H4(f"{probe_latency} ms", className="text-primary fw-bold mb-0")
+                        ], className="p-3 bg-light rounded border text-center")
+                    ], md=3),
+                ], className="g-3 mb-4"),
+
+                html.H6("Detailed Engine Subsystem Probes (IETF RFC Health Specification)", className="fw-bold text-dark mb-3"),
+                dash_table.DataTable(
+                    data=[
+                        {
+                            "Engine": h.get("engine_name"),
+                            "Status": h.get("status", "").upper(),
+                            "Deployment": h.get("deployment_status"),
+                            "Target Resource": h.get("target_resource"),
+                            "Latency (ms)": h.get("latency_ms"),
+                            "Storage Volume": h.get("checks", {}).get("storage_layer", {}).get("status", "N/A").upper(),
+                            "Catalog Schema": h.get("checks", {}).get("catalog_metadata", {}).get("status", "N/A").upper(),
+                            "Query Layer": h.get("checks", {}).get("query_interface", {}).get("status", "N/A").upper(),
+                        }
+                        for h in engines_dict.values()
+                    ],
+                    columns=[
+                        {"name": "Engine", "id": "Engine"},
+                        {"name": "Status", "id": "Status"},
+                        {"name": "Deployment", "id": "Deployment"},
+                        {"name": "Target Resource", "id": "Target Resource"},
+                        {"name": "Latency (ms)", "id": "Latency (ms)"},
+                        {"name": "Storage Volume", "id": "Storage Volume"},
+                        {"name": "Catalog Schema", "id": "Catalog Schema"},
+                        {"name": "Query Layer", "id": "Query Layer"},
+                    ],
+                    style_table={"overflowX": "auto"},
+                    style_header={"backgroundColor": "#f8f9fa", "fontWeight": "bold", "color": "#495057"},
+                    style_cell={"textAlign": "left", "padding": "12px", "fontSize": "13px"},
+                    style_data_conditional=[
+                        {
+                            "if": {"filter_query": "{Status} = 'PASS'"},
+                            "backgroundColor": "#e6f4ea",
+                            "color": "#137333",
+                            "fontWeight": "bold"
+                        },
+                        {
+                            "if": {"filter_query": "{Status} = 'WARN'"},
+                            "backgroundColor": "#fef7e0",
+                            "color": "#b06000",
+                            "fontWeight": "bold"
+                        }
+                    ]
+                )
+            ])
+        ], className="shadow-sm border-0")
+
 
 # -----------------------------------------------------------------------------
 # Callback: Update Raw Store Data Explorer Body
@@ -666,7 +758,19 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
         ])
     ], className="shadow-sm border-0")
 
-    return html.Div([meta_card, sql_card, table_card])
+    mock_banner = (
+        dbc.Alert([
+            html.I(className="bi bi-laptop me-2 fs-5 align-middle text-warning"),
+            html.Span([
+                html.Strong("Offline Demo Mode (Synthetic Mock Simulation): "),
+                f"Displaying local synthetic mock variant calls isolated for {engine}. Switch to 'Live AWS' in the navbar to query real AWS Cloud tables directly."
+            ], className="align-middle")
+        ], color="warning", className="d-flex align-items-center mb-3 shadow-sm border-0")
+        if offline else None
+    )
+
+    components = [b for b in [mock_banner, meta_card, sql_card, table_card] if b is not None]
+    return html.Div(components)
 
 
 if __name__ == "__main__":

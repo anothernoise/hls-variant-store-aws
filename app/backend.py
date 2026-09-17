@@ -630,16 +630,22 @@ class VariantStoreBackend:
             df = self.variants_df.copy() if not self.variants_df.empty else self._get_fallback_dataframe("carriers")
             if not df.empty:
                 engine_id = config.get("id", engine.lower().replace(" ", "_"))
-                if "engine" in df.columns:
-                    engine_specific = df[df["engine"] == engine_id]
-                    if not engine_specific.empty:
-                        df = engine_specific
+                if is_offline:
+                    # Explicit deterministic synthetic mock dataset for the chosen active engine
+                    df = df.copy()
+                    df["engine"] = engine_id
+                    df["cohort_id"] = "synthetic_mock_v1"
+                else:
+                    if "engine" in df.columns:
+                        engine_specific = df[df["engine"] == engine_id]
+                        if not engine_specific.empty:
+                            df = engine_specific
+                        else:
+                            df = df.copy()
+                            df["engine"] = engine_id
                     else:
                         df = df.copy()
                         df["engine"] = engine_id
-                else:
-                    df = df.copy()
-                    df["engine"] = engine_id
 
                 if chromosome and chromosome != "All" and "reference_name" in df.columns:
                     df = df[df["reference_name"] == chromosome]
