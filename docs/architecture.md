@@ -1,4 +1,4 @@
-# Architecture: genomic variant store on AWS
+# Architecture: Genomic Variant Store on AWS
 
 ## Problem
 
@@ -7,54 +7,60 @@ carriers, gene roll-ups) are fast and cheap, new samples can be added incrementa
 **N+1 problem**), and the data can be joined to clinical phenotypes — all under PHI-grade
 governance.
 
-## Forces / NFRs
+## Architecture Decisions (ADRs)
 
-- **Cross-sample query performance** at population scale (columnar pruning, partitioning).
-- **Incremental ingest**: adding sample N+1 must not reprocess all N.
-- **Joinability** to clinical (OMOP) data without data movement.
-- **Governance**: genomic data is inherently re-identifying — high-sensitivity PHI.
-- **Cost**: compute-dominated; minimize scan and egress.
+Detailed architectural choices, trade-off evaluations, and compliance analyses are recorded in:
+- [ADR-001: Storage Strategy Selection](adr/ADR-001-variant-storage-strategy-selection.md)
+- [ADR-002: Solving the N+1 Incremental Ingestion Problem](adr/ADR-002-n-plus-1-incremental-ingestion.md)
+- [ADR-003: PHI Governance & Column-Level Security](adr/ADR-003-phi-governance-and-column-level-security.md)
+- [ADR-004: Multimodal Genotype-Phenotype Federation (OMOP CDM)](adr/ADR-004-multimodal-genotype-phenotype-federation.md)
 
-## Options evaluated
+## Forces & Non-Functional Requirements (NFRs)
+
+- **Cross-sample query performance** at population scale (columnar pruning, partitioning by `reference_name`).
+- **Incremental ingest**: adding sample N+1 must not reprocess all N ($O(1)$ write amplification via Iceberg manifests).
+- **Joinability** to clinical (OMOP) data without data movement or fragile ETL pipelines.
+- **Governance**: genomic data is inherently re-identifying — treated as high-sensitivity PHI with Lake Formation column controls.
+- **Cost**: compute-dominated; minimize scan and egress (\$5.00/TB Athena standard rate).
+
+## Implemented Architectures
 
 ```mermaid
 flowchart TB
-  V["gVCF / VCF"] --> A["HealthOmics variant store (managed)"]
-  V --> B["S3 Tables (managed Iceberg)"]
-  V --> C["S3 + Iceberg (custom)"]
-  V --> D["TileDB-VCF (sparse arrays)"]
-  A & B & C --> Q["Athena / Spark / Trino"]
-  Q --> J["Join to OMOP · Lake Formation"]
+  V["Synthetic gVCF / VCF"] --> Ingest["Ingestion Loaders"]
+  Ingest --> A["Amazon S3 Tables (Managed Iceberg)"]
+  Ingest --> B["Custom S3 + Iceberg (Partitioned by reference_name)"]
+  
+  subgraph Governance["Governance & Security"]
+    KMS["Dedicated KMS CMK (SSE-KMS)"]
+    LF["AWS Lake Formation Column Projection"]
+  end
+  
+  A & B --> LF
+  KMS -.-> A & B
+  
+  LF --> Q["Amazon Athena / Presto / Trino"]
+  OMOP["Synthetic OMOP CDM (person, condition_occurrence)"] --> Q
+  
+  Q --> Bench["Benchmark Harness: Latency, Cost, N+1"]
+  Q --> Join["Clinical Genotype ↔ Phenotype Insights"]
 ```
 
-- **HealthOmics variant store** — managed ingest + Athena query + provenance; least ops, AWS-native.
-- **S3 Tables** — managed Apache Iceberg (auto compaction/maintenance); open format, low ops.
-- **S3 + Iceberg (custom)** — full control of partitioning/engines; most work.
-- **TileDB-VCF** — sparse-array store optimized for dense cohort queries and incremental ingest.
+## Strategy Evaluation & Trade-offs
 
-## Decision (reference)
+| Strategy | Managed? | Engine | What you learn |
+| :--- | :--- | :--- | :--- |
+| **Amazon S3 Tables** | Managed Iceberg | Athena / Spark | Open Iceberg format with automated table maintenance & compaction |
+| **Custom S3 + Iceberg** | DIY | Athena / Spark / Trino | Hive-style partitioning (`reference_name`), small-file management, manifest commits |
+| **HealthOmics variant store** | Fully managed | Athena / Lake Formation | Managed genomics with AWS-native provenance |
+| **TileDB-VCF** | Self-run | TileDB API / Spark | Columnar sparse-array engine for multi-sample variant matrices |
 
-Default to **HealthOmics variant store** for an all-AWS managed build with provenance; use
-**S3 Tables** when you want open Iceberg + SQL with minimal table operations; drop to
-**custom S3 + Iceberg** only when you need bespoke partitioning or multi-engine/multi-cloud
-portability; choose **TileDB-VCF** when array-style cohort access dominates.
+## Governance & Security Architecture
 
-## Trade-offs recorded
-
-- **Managed vs control:** HealthOmics/S3 Tables minimize ops and small-file pain; custom
-  Iceberg maximizes control but you own compaction, snapshot expiry, and partitioning.
-- **Partitioning:** by chromosome (+ sample batch) to prune cohort scans; right-size Parquet.
-- **N+1:** gVCF + append/merge (Iceberg upsert or HealthOmics import) so new samples are additive.
-- **Format lock-in:** Iceberg (S3 Tables or custom) keeps the store open and portable;
-  HealthOmics trades some openness for managed provenance.
-
-## Governance
-
-Lake Formation column/row access control over the variant tables; KMS encryption; audited
-access. Genomic data cannot be meaningfully de-identified — restrict and log access tightly.
-
-## What to extend
-
-- Add an annotation join (ClinVar-style, synthetic) and a gene-level roll-up view.
-- Add a cost/latency benchmark harness across the four strategies.
-- Wire ingest to a [HealthOmics](https://github.com/anothernoise/hls-sa) secondary-analysis workflow.
+1. **Customer Managed KMS Key**:
+   All S3 Table Buckets, custom warehouse buckets, and Athena query result locations are encrypted with a dedicated KMS CMK. S3 Tables maintenance principals (`tables.s3.amazonaws.com`) and Athena engines receive explicit policy grants.
+2. **Lake Formation Column-Level Security**:
+   - **Researcher Role**: Can query de-identified genomic locus attributes (`reference_name`, `start`, `end`, `ref`, `alt`, `qual`, `filter`, `dp`, `gq`, `attributes`). Sensitive PHI columns (`sample_id`, `genotype`, `allele_depth`) are blocked.
+   - **Clinical Steward Role**: Full access across all columns for clinical correlation.
+3. **Audit Trails**:
+   Full CloudTrail data events logging for all S3 and Athena query activities.

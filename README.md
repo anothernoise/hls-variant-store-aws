@@ -12,45 +12,95 @@ trade-offs an SA weighs when storing and querying variants at scale.
 ```mermaid
 flowchart LR
   VCF["gVCF / VCF (synthetic)"] --> Ingest["Ingest + convert"]
-  Ingest --> HO["HealthOmics variant store"]
   Ingest --> S3T["S3 Tables (managed Iceberg)"]
   Ingest --> Ice["S3 + Iceberg (custom)"]
+  Ingest --> HO["HealthOmics variant store"]
   Ingest --> TDB["TileDB-VCF"]
-  HO & S3T & Ice --> Athena["Athena / Spark queries"]
+  S3T & Ice & HO --> LF["Lake Formation (CLS + KMS)"]
+  LF --> Athena["Athena / Presto SQL"]
   Athena --> Bench["Benchmark: allele freq, carriers, N+1 ingest"]
   Athena --> Join["Join to synthetic OMOP"]
 ```
 
-## The four strategies
+## The Four Strategies
 
 | Strategy | Managed? | Engine | What you learn |
-| --- | --- | --- | --- |
-| **HealthOmics variant store** | Fully managed | Athena / Lake Formation | Managed genomics + provenance |
-| **S3 Tables** | Managed Iceberg | Athena / Spark | Open Iceberg without table ops |
-| **S3 + Iceberg (custom)** | DIY | Athena / Spark / Trino | Partitioning, file sizing, schema evolution |
-| **TileDB-VCF** | Self-run | TileDB API / Spark | Sparse-array variant storage |
+| :--- | :--- | :--- | :--- |
+| **S3 Tables** | Managed Iceberg | Athena / Spark | Open Iceberg format without table ops or manual compaction |
+| **S3 + Iceberg (custom)** | DIY | Athena / Spark / Trino | Partitioning (`reference_name`), file sizing, schema evolution, manifest commits |
+| **HealthOmics variant store** | Fully managed | Athena / Lake Formation | Managed genomics with native AWS provenance |
+| **TileDB-VCF** | Self-run | TileDB API / Spark | Sparse-array variant storage for dense cohort queries |
 
-## The exercises
+## The Exercises
 
-1. **Ingest** a synthetic cohort of gVCFs into each store.
-2. **Query** the same questions on each: allele frequency across the cohort, carriers of a
-   variant, and a gene roll-up.
-3. **Benchmark** query latency/cost and the **N+1** incremental-ingest behaviour.
-4. **Join** the variant store to a synthetic [OMOP](https://github.com/anothernoise/hls-sa) clinical table (genotype ↔ phenotype).
-5. **Govern** — apply Lake Formation column controls and KMS; treat variants as high-sensitivity PHI.
+Full step-by-step instructions are available in the **[Lab Exercises Guide](docs/exercises.md)**:
 
-## Repo layout
+1. **Ingest**: Load synthetic gVCF cohorts into Amazon S3 Tables and Custom S3 Iceberg.
+2. **Query**: Run identical SQL queries across both engines (allele frequency, carrier lookup, gene burden).
+3. **Benchmark**: Measure latency, data scanned, Athena costs, and the $N+1$ incremental ingest speedup.
+4. **Join**: Correlate genomic variant carriers to synthetic [OMOP](https://github.com/anothernoise/hls-sa) clinical conditions without data movement.
+5. **Govern**: Enforce AWS Lake Formation column projection filters and KMS Customer Managed Keys.
+
+## Architecture Decision Records (ADRs)
+
+All core technical decisions and trade-offs are documented in [`docs/adr/`](docs/adr/):
+- [ADR-001: Storage Strategy Selection](docs/adr/ADR-001-variant-storage-strategy-selection.md)
+- [ADR-002: Solving the N+1 Incremental Ingestion Problem](docs/adr/ADR-002-n-plus-1-incremental-ingestion.md)
+- [ADR-003: PHI Governance & Column-Level Security](docs/adr/ADR-003-phi-governance-and-column-level-security.md)
+- [ADR-004: Multimodal Genotype-Phenotype Federation (OMOP CDM)](docs/adr/ADR-004-multimodal-genotype-phenotype-federation.md)
+
+## Repo Layout
 
 ```
 .
-├── docs/architecture.md      # design write-up, options, trade-offs
-├── ingest/                   # VCF→store loaders per strategy (stub)
-├── queries/                  # benchmark queries (stub)
-├── deploy/                   # IaC (stub)
-└── samples/                  # synthetic gVCFs + OMOP clinical data
+├── deploy/terraform/         # Terraform IaC (S3 Tables, Custom Iceberg, Athena, OMOP, KMS, Lake Formation)
+├── docs/
+│   ├── architecture.md       # Solution design, trade-offs, and NFRs
+│   ├── exercises.md          # Step-by-step lab exercise guide
+│   └── adr/                  # Architecture Decision Records (ADR-001 through ADR-004)
+├── samples/
+│   ├── generate_synthetic_data.py # Deterministic multi-sample gVCF & OMOP generator
+│   └── data/                 # Generated synthetic VCF and OMOP CSV datasets
+├── ingest/
+│   ├── s3tables/             # Ingestion loader for Amazon S3 Tables
+│   └── custom_iceberg/       # Partition-aware loader for Custom S3 + Iceberg
+├── queries/
+│   ├── s3tables/             # Athena Presto/Trino SQL queries for S3 Tables
+│   └── custom_iceberg/       # Athena Presto/Trino SQL queries for Custom Iceberg
+├── benchmarks/
+│   ├── benchmark_runner.py   # Latency, scan volume, cost & N+1 speedup benchmark harness
+│   └── README.md             # Benchmark methodology and formulas
+├── governance/
+│   └── lakeformation_policy.md # Threat model and column access control matrix
+└── tests/                    # Unit test suite for loaders and benchmark calculations
 ```
 
-> **Status:** scaffold. Architecture and lab plan documented; loaders/IaC stubbed.
+## Quick Start & Verification
+
+### 1. Generate Synthetic Data
+```bash
+python3 samples/generate_synthetic_data.py
+```
+
+### 2. Run Unit Tests
+```bash
+python3 -m unittest discover tests
+```
+
+### 3. Run Benchmarks
+```bash
+python3 benchmarks/benchmark_runner.py --cohort-size 10
+```
+
+### 4. Deploy Infrastructure (AWS)
+```bash
+cd deploy/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
+
 > **Synthetic data only — genomic data is inherently identifying; never commit real data.**
 
 ## License

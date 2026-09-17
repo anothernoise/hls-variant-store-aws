@@ -1,0 +1,26 @@
+# Target AWS Deployment Region (ensure S3 Tables is available, e.g., us-east-1, us-east-2, us-west-2, eu-west-1)
+aws_region = "us-east-1"
+
+# Environment identifier (dev, staging, prod)
+environment = "dev"
+
+# Project prefix
+project_name = "hls-variant-store"
+
+# Optional explicit table bucket name (must be unique, 3-63 chars, lowercase, numbers, hyphens)
+# If left commented out, a name is derived deterministically from project_name, environment, and account_id
+# table_bucket_name = "my-genomics-variant-bucket"
+
+# S3 Tables Namespace (database equivalent)
+namespace_name = "genomics"
+
+# S3 Tables Apache Iceberg Table Name
+table_name = "variants"
+
+# Custom tags
+tags = {
+  Project     = "HLS-Variant-Store"
+  ManagedBy   = "Terraform"
+  DataClass   = "Genomic-Synthetic"
+  CostCenter  = "Bioinformatics-Platform"
+}

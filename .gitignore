@@ -5,3 +5,6 @@ node_modules/
 __pycache__/
 .terraform/
 *.tfstate*
+custom_iceberg_warehouse/
+*.parquet
+benchmarks/*.json
