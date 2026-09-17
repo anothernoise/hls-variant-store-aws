@@ -68,8 +68,11 @@ All core technical decisions and trade-offs are documented in [`docs/adr/`](docs
 ├── queries/
 │   ├── s3tables/             # Athena Presto/Trino SQL queries for S3 Tables
 │   └── custom_iceberg/       # Athena Presto/Trino SQL queries for Custom Iceberg
+├── scripts/
+│   └── validate_exercises.py # Automated validation CLI (local-mode and live aws-mode)
 ├── benchmarks/
 │   ├── benchmark_runner.py   # Latency, scan volume, cost & N+1 speedup benchmark harness
+│   ├── live_performance_report.md # Empirical Athena execution & cost telemetry
 │   └── README.md             # Benchmark methodology and formulas
 ├── governance/
 │   └── lakeformation_policy.md # Threat model and column access control matrix
@@ -83,13 +86,14 @@ All core technical decisions and trade-offs are documented in [`docs/adr/`](docs
 python3 samples/generate_synthetic_data.py
 ```
 
-### 2. Run Unit Tests
+### 2. Run Automated Lab Validation (Offline / Local)
 ```bash
-python3 -m unittest discover tests
+python3 scripts/validate_exercises.py --local-mode
 ```
 
-### 3. Run Benchmarks
+### 3. Run Unit Tests & Local Benchmarks
 ```bash
+python3 -m unittest discover tests
 python3 benchmarks/benchmark_runner.py --cohort-size 10
 ```
 
@@ -100,6 +104,11 @@ cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform plan
 terraform apply
+```
+
+### 5. Validate Live Deployment (AWS Athena & KMS)
+```bash
+python3 scripts/validate_exercises.py --aws-mode
 ```
 
 > **Synthetic data only — genomic data is inherently identifying; never commit real data.**

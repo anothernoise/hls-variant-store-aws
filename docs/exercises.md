@@ -66,7 +66,7 @@ flowchart TD
 Before starting the exercises, verify your local environment and deployed AWS resources.
 
 ### Automated Self-Test
-The repository includes an automated validation CLI [`scripts/validate_exercises.py`](file:///Users/dmitryshirokov/_Projects/hls-variant-store-aws/scripts/validate_exercises.py):
+The repository includes an automated validation CLI [`scripts/validate_exercises.py`](../scripts/validate_exercises.py):
 
 ```bash
 # 1. Offline self-test (checks test data integrity, parsers, and query syntax)
