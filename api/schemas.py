@@ -45,3 +45,34 @@ class BenchmarkItem(BaseModel):
     allele_freq_ms: float = Field(description="Cohort allele frequency aggregation latency (ms)")
     omop_join_ms: float = Field(description="Multimodal clinical OMOP join latency (ms)")
     cost_per_query: str = Field(description="Estimated dollar cost per query execution")
+
+
+class VariantRecordInput(BaseModel):
+    reference_name: str = Field(description="Chromosome / contig name (e.g. chr17)")
+    start: int = Field(description="1-based start genomic position")
+    end: int = Field(description="1-based end genomic position")
+    reference_bases: str = Field(description="Reference allele bases (e.g. A)")
+    alternate_bases: str = Field(description="Alternate allele bases (e.g. G)")
+    sample_id: str = Field(description="Sample / patient identifier")
+    genotype: str = Field(default="0/1", description="Genotype call (e.g. 0/1, 1/1)")
+    qual: float = Field(default=99.0, description="Phred variant quality score")
+    filter: str = Field(default="PASS", description="VCF filter status")
+    dp: int = Field(default=30, description="Total read depth")
+    gq: int = Field(default=99, description="Genotype quality score")
+    allele_depth: str = Field(default="15,15", description="Allelic depths (AD)")
+    attributes: str = Field(default="{}", description="JSON serialized variant annotations (gene, clnsig)")
+
+
+class FeedBatchRequest(BaseModel):
+    cohort_id: str = Field(default="online_feed_v1", description="Cohort / batch identifier")
+    records: List[VariantRecordInput] = Field(default_factory=list, description="List of structured variant calls to ingest")
+
+
+class FeedBatchResponse(BaseModel):
+    batch_id: str = Field(description="Unique batch identifier")
+    engine: str = Field(description="Target engine identifier stamped on ingested records")
+    records_ingested: int = Field(description="Number of variant calls successfully ingested")
+    duration_ms: float = Field(description="Ingestion execution duration in milliseconds")
+    status: str = Field(default="COMPLETED", description="Batch ingestion status")
+    target_table: str = Field(description="Target table where records were appended")
+

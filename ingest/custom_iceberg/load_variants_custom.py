@@ -67,6 +67,7 @@ def write_partitioned_dataset(partitions: dict[str, list[dict[str, Any]]], outpu
             ("allele_depth", pa.string()),
             ("attributes", pa.string()),
             ("cohort_id", pa.string()),
+            ("engine", pa.string()),
         ])
 
     for chrom, rows in partitions.items():

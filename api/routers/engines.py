@@ -6,7 +6,13 @@ import logging
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 
-from api.schemas import EngineMetadataResponse, QueryResultResponse, QueryTelemetry
+from api.schemas import (
+    EngineMetadataResponse,
+    QueryResultResponse,
+    QueryTelemetry,
+    FeedBatchRequest,
+    FeedBatchResponse
+)
 from app.backend import VariantStoreBackend
 
 logger = logging.getLogger("variant_store_api.engines")
@@ -156,3 +162,19 @@ def get_raw_records(
         telemetry=QueryTelemetry(**telemetry),
         sql=sql
     )
+
+
+@router.post("/{engine_id}/feed", response_model=FeedBatchResponse, status_code=201)
+def feed_engine_batch(
+    engine_id: str,
+    payload: FeedBatchRequest
+):
+    """Ingests a batch of variant records into the target engine store and stamps the engine name."""
+    canonical_name = resolve_engine_name(engine_id)
+    records_dict = [rec.model_dump() for rec in payload.records]
+    result = backend.feed_engine(
+        engine=canonical_name,
+        records=records_dict,
+        cohort_id=payload.cohort_id
+    )
+    return FeedBatchResponse(**result)

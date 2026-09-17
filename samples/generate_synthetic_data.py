@@ -23,19 +23,60 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 SAMPLE_IDS = [f"sample_{i:03d}" for i in range(1, 11)]
 
-# Simulated genomic loci across Chr21 and Chr22 (GRCh38 coordinates)
+# Simulated genomic loci across Chr1, Chr2, Chr7, Chr13, Chr17, Chr19, Chr21, Chr22 (GRCh38 coordinates)
 SYNTHETIC_LOCI = [
     # chr, start, end, ref, alt, gene_symbol, simulated_pathogenicity, target_phenotype_concept
     ("chr21", 25891796, 25891796, "A", "G", "APP", "PATHOGENIC", 43530807), # 43530807: Early onset Alzheimer disease
     ("chr21", 25891820, 25891820, "C", "T", "APP", "BENIGN", None),
+    ("chr21", 25892010, 25892010, "G", "A", "APP", "BENIGN", None),
     ("chr21", 33039603, 33039603, "G", "A", "SOD1", "PATHOGENIC", 374919),   # 374919: Amyotrophic lateral sclerosis
     ("chr21", 33039650, 33039650, "T", "C", "SOD1", "VUS", None),
+    ("chr21", 33040100, 33040100, "C", "T", "SOD1", "BENIGN", None),
     ("chr21", 41480000, 41480000, "C", "A", "RUNX1", "BENIGN", None),
+    ("chr21", 41482500, 41482500, "T", "C", "RUNX1", "VUS", None),
     ("chr22", 17071756, 17071756, "T", "C", "BCR", "BENIGN", None),
+    ("chr22", 17073200, 17073200, "G", "A", "BCR", "BENIGN", None),
     ("chr22", 23223844, 23223844, "G", "T", "SMARCB1", "PATHOGENIC", 4180790), # 4180790: Malignant rhabdoid tumor
+    ("chr22", 23225100, 23225100, "A", "G", "SMARCB1", "BENIGN", None),
     ("chr22", 29697660, 29697660, "A", "C", "NF2", "PATHOGENIC", 4216183),   # 4216183: Neurofibromatosis type 2
     ("chr22", 29697700, 29697700, "G", "A", "NF2", "BENIGN", None),
     ("chr22", 37680000, 37680000, "C", "T", "LARGE1", "BENIGN", None),
+    ("chr22", 28688400, 28688400, "T", "C", "CHEK2", "PATHOGENIC", 4329847),
+    # Chr1 - MTHFR, GBA1, PCSK9, CFH
+    ("chr1", 11796321, 11796321, "C", "T", "MTHFR", "VUS", None),
+    ("chr1", 11796450, 11796450, "A", "C", "MTHFR", "BENIGN", None),
+    ("chr1", 155235843, 155235843, "T", "C", "GBA1", "PATHOGENIC", 4048039), # Gaucher disease
+    ("chr1", 155236100, 155236100, "G", "A", "GBA1", "BENIGN", None),
+    ("chr1", 55039981, 55039981, "G", "A", "PCSK9", "PATHOGENIC", 313217),   # Hypercholesterolemia
+    ("chr1", 55041200, 55041200, "C", "T", "PCSK9", "BENIGN", None),
+    ("chr1", 196659237, 196659237, "T", "C", "CFH", "PATHOGENIC", 37311061),
+    # Chr2 - MSH2, MSH6, MYH9
+    ("chr2", 47414434, 47414434, "A", "T", "MSH2", "PATHOGENIC", 4312442), # Lynch syndrome
+    ("chr2", 47416000, 47416000, "C", "T", "MSH2", "BENIGN", None),
+    ("chr2", 47783151, 47783151, "G", "C", "MSH6", "PATHOGENIC", 4312442),
+    ("chr2", 36441582, 36441582, "A", "G", "MYH9", "BENIGN", None),
+    # Chr7 - CFTR (Cystic Fibrosis), EGFR, BRAF
+    ("chr7", 117559590, 117559590, "C", "T", "CFTR", "PATHOGENIC", 4144111), # Cystic fibrosis
+    ("chr7", 117559800, 117559800, "G", "A", "CFTR", "BENIGN", None),
+    ("chr7", 55181378, 55181378, "C", "T", "EGFR", "PATHOGENIC", 4178818),  # Lung cancer
+    ("chr7", 55182500, 55182500, "A", "G", "EGFR", "BENIGN", None),
+    ("chr7", 140753336, 140753336, "A", "T", "BRAF", "PATHOGENIC", 4112853), # Melanoma V600E
+    # Chr13 - BRCA2, RB1, GJB2
+    ("chr13", 32338148, 32338148, "C", "T", "BRCA2", "PATHOGENIC", 4112853), # Breast/ovarian cancer
+    ("chr13", 32338780, 32338780, "G", "A", "BRCA2", "BENIGN", None),
+    ("chr13", 48303750, 48303750, "C", "T", "RB1", "PATHOGENIC", 4180790),
+    ("chr13", 20188981, 20188981, "G", "A", "GJB2", "PATHOGENIC", 378419),
+    # Chr17 - BRCA1, TP53, ERBB2
+    ("chr17", 43044295, 43044295, "A", "G", "BRCA1", "PATHOGENIC", 4112853), # Breast/ovarian cancer
+    ("chr17", 43045802, 43045802, "T", "C", "BRCA1", "BENIGN", None),
+    ("chr17", 7673802, 7673802, "C", "T", "TP53", "PATHOGENIC", 4112853),   # Li-Fraumeni syndrome
+    ("chr17", 7674220, 7674220, "G", "A", "TP53", "BENIGN", None),
+    ("chr17", 39724731, 39724731, "C", "T", "ERBB2", "VUS", None),
+    # Chr19 - APOE (Alzheimer's risk), LDLR (Hypercholesterolemia)
+    ("chr19", 44908684, 44908684, "T", "C", "APOE", "PATHOGENIC", 43530807), # APOE-e4
+    ("chr19", 44908822, 44908822, "C", "T", "APOE", "BENIGN", None),
+    ("chr19", 11100236, 11100236, "G", "A", "LDLR", "PATHOGENIC", 313217),   # Hypercholesterolemia
+    ("chr19", 15174351, 15174351, "C", "T", "NOTCH3", "PATHOGENIC", 4144111), # CADASIL
 ]
 
 def generate_vcf(output_path: str, samples: list[str]):

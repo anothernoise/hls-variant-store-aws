@@ -34,7 +34,8 @@ ICEBERG_COLUMNS = [
     "gq",
     "allele_depth",
     "attributes",
-    "cohort_id"
+    "cohort_id",
+    "engine"
 ]
 
 def parse_vcf_header(vcf_file) -> list[str]:
@@ -48,7 +49,7 @@ def parse_vcf_header(vcf_file) -> list[str]:
             return []
     raise ValueError("Invalid VCF: No '#CHROM' header found.")
 
-def parse_vcf_records(vcf_path: str, cohort_id: str = "synthetic_v1") -> Generator[dict[str, Any], None, None]:
+def parse_vcf_records(vcf_path: str, cohort_id: str = "synthetic_v1", engine: str = "s3_tables") -> Generator[dict[str, Any], None, None]:
     """
     Parses VCF lines into individual sample call records conforming to
     the S3 Tables Iceberg schema.
@@ -121,12 +122,13 @@ def parse_vcf_records(vcf_path: str, cohort_id: str = "synthetic_v1") -> Generat
                     "gq": gq,
                     "allele_depth": ad,
                     "attributes": attributes_json,
-                    "cohort_id": cohort_id
+                    "cohort_id": cohort_id,
+                    "engine": engine
                 }
 
-def load_vcf_to_memory(vcf_path: str, cohort_id: str) -> list[dict[str, Any]]:
+def load_vcf_to_memory(vcf_path: str, cohort_id: str, engine: str = "s3_tables") -> list[dict[str, Any]]:
     """Loads and returns all parsed variant records in memory."""
-    records = list(parse_vcf_records(vcf_path, cohort_id))
+    records = list(parse_vcf_records(vcf_path, cohort_id, engine=engine))
     logger.info(f"Parsed total of {len(records)} sample-variant calls from {vcf_path}")
     return records
 
@@ -151,6 +153,7 @@ def write_to_parquet(records: list[dict[str, Any]], output_path: str):
             ("allele_depth", pa.string()),
             ("attributes", pa.string()),
             ("cohort_id", pa.string()),
+            ("engine", pa.string()),
         ])
 
         data = {col: [r[col] for r in records] for col in ICEBERG_COLUMNS}

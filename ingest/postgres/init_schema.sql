@@ -16,8 +16,13 @@ CREATE TABLE IF NOT EXISTS variants (
     gq INT,
     allele_depth VARCHAR(64),
     attributes JSONB,
-    cohort_id VARCHAR(64)
+    cohort_id VARCHAR(64),
+    engine VARCHAR(64) DEFAULT 'aurora_postgres'
 );
+
+-- Index on engine for multi-tenant / multi-engine filtering
+CREATE INDEX IF NOT EXISTS idx_variants_engine
+ON variants (engine);
 
 -- B-Tree index for locus range queries and carrier lookups
 CREATE INDEX IF NOT EXISTS idx_variants_locus 

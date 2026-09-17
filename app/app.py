@@ -624,6 +624,12 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
                 style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
                 style_data_conditional=[
                     {
+                        "if": {"column_id": "engine"},
+                        "fontFamily": "monospace",
+                        "fontWeight": "bold",
+                        "color": "#0d6efd"
+                    },
+                    {
                         "if": {"column_id": "genotype"},
                         "fontFamily": "monospace",
                         "fontWeight": "bold",

@@ -122,3 +122,20 @@ class VariantStoreApiClient:
         except Exception:
             pass
         return []
+
+    def feed_engine(
+        self,
+        engine: str,
+        records: List[Dict[str, Any]],
+        cohort_id: str = "online_feed"
+    ) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/api/v1/engines/{engine}/feed"
+            payload = {"cohort_id": cohort_id, "records": records}
+            resp = self.session.post(url, json=payload, timeout=30.0)
+            if resp.status_code in (200, 201):
+                return resp.json()
+        except Exception as e:
+            logger.warning("FastAPI middle layer unreachable (%s), using direct backend for feed", e)
+        return self.fallback_backend.feed_engine(engine=engine, records=records, cohort_id=cohort_id)
+

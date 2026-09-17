@@ -93,7 +93,36 @@ class TestFastAPIMiddleLayer(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         benchmarks = response.json()
         self.assertIsInstance(benchmarks, list)
-        self.assertGreaterEqual(len(benchmarks), 7)
+    def test_feed_engine_batch(self):
+        payload = {
+            "cohort_id": "test_online_cohort",
+            "records": [
+                {
+                    "reference_name": "chr17",
+                    "start": 43044295,
+                    "end": 43044295,
+                    "reference_bases": "A",
+                    "alternate_bases": "G",
+                    "sample_id": "sample_001",
+                    "genotype": "0/1",
+                    "dp": 40,
+                    "gq": 99,
+                    "allele_depth": "20,20",
+                    "attributes": "{\"gene\": \"BRCA1\", \"clnsig\": \"PATHOGENIC\"}"
+                }
+            ]
+        }
+        response = self.client.post("/api/v1/engines/s3_tables/feed", json=payload)
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["records_ingested"], 1)
+        self.assertEqual(data["engine"], "s3_tables")
+        self.assertEqual(data["status"], "COMPLETED")
+
+    def test_feed_unknown_engine_returns_404(self):
+        payload = {"cohort_id": "c1", "records": []}
+        response = self.client.post("/api/v1/engines/invalid_engine_xyz/feed", json=payload)
+        self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":

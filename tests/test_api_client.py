@@ -12,17 +12,17 @@ class TestVariantStoreApiClient(unittest.TestCase):
     def setUp(self):
         self.client = VariantStoreApiClient(base_url="http://mock-api:8000")
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_is_api_alive_success(self, mock_get):
         mock_get.return_value.status_code = 200
         self.assertTrue(self.client.is_api_alive())
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_is_api_alive_failure(self, mock_get):
         mock_get.side_effect = Exception("Connection error")
         self.assertFalse(self.client.is_api_alive())
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_get_allele_frequencies_from_api(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -36,14 +36,14 @@ class TestVariantStoreApiClient(unittest.TestCase):
         self.assertEqual(len(df), 1)
         self.assertEqual(tel["latency_ms"], 25.0)
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_fallback_when_api_fails(self, mock_get):
         mock_get.side_effect = Exception("Server down")
         df, tel = self.client.get_allele_frequencies("Amazon S3 Tables", offline=True)
         self.assertFalse(df.empty)
         self.assertEqual(tel["mode"], "offline")
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_get_carrier_lookup_from_api(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -56,7 +56,7 @@ class TestVariantStoreApiClient(unittest.TestCase):
         df, tel = self.client.get_pathogenic_carriers("Custom S3 + Iceberg", gene="APP", offline=True)
         self.assertEqual(len(df), 1)
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_get_gene_burden_from_api(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -69,7 +69,7 @@ class TestVariantStoreApiClient(unittest.TestCase):
         df, tel = self.client.get_gene_burden("Delta Lake on S3", offline=True)
         self.assertEqual(len(df), 1)
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_get_omop_phenotype_join_from_api(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -82,7 +82,7 @@ class TestVariantStoreApiClient(unittest.TestCase):
         df, tel = self.client.get_omop_phenotype_join("Hail VDS (Spark)", offline=True)
         self.assertEqual(len(df), 1)
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_get_raw_store_data_from_api(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -97,7 +97,7 @@ class TestVariantStoreApiClient(unittest.TestCase):
         self.assertEqual(len(df), 1)
         self.assertEqual(sql, "SELECT 1")
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_get_benchmarks_from_api(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -107,6 +107,40 @@ class TestVariantStoreApiClient(unittest.TestCase):
         benchmarks = self.client.get_benchmarks()
         self.assertEqual(len(benchmarks), 1)
 
+    @patch("requests.Session.post")
+    def test_feed_engine_from_api(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        mock_resp.json.return_value = {
+            "batch_id": "batch_abc123",
+            "engine": "s3_tables",
+            "records_ingested": 1,
+            "duration_ms": 15.0,
+            "status": "COMPLETED",
+            "target_table": "s3tablescatalog.variants"
+        }
+        mock_post.return_value = mock_resp
+
+        res = self.client.feed_engine(
+            engine="s3_tables",
+            records=[{"reference_name": "chr1", "start": 100}],
+            cohort_id="c1"
+        )
+        self.assertEqual(res["records_ingested"], 1)
+        self.assertEqual(res["engine"], "s3_tables")
+
+    @patch("requests.Session.post")
+    def test_feed_engine_fallback(self, mock_post):
+        mock_post.side_effect = Exception("API connection dropped")
+        res = self.client.feed_engine(
+            engine="Amazon S3 Tables",
+            records=[{"reference_name": "chr1", "start": 100, "sample_id": "s1", "genotype": "0/1"}],
+            cohort_id="c1"
+        )
+        self.assertEqual(res["records_ingested"], 1)
+        self.assertEqual(res["status"], "COMPLETED")
+
 
 if __name__ == "__main__":
     unittest.main()
+

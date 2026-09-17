@@ -198,6 +198,31 @@ class TestBackendMetadata(unittest.TestCase):
         sql = self.backend.build_engine_sql("Amazon Aurora PostgreSQL (Serverless v2)", query_kind="af")
         self.assertIn("attributes->>'gene'", sql)
 
+    def test_engine_column_in_sql(self):
+        sql = self.backend.build_engine_sql("Custom S3 + Iceberg", query_kind="carriers")
+        self.assertIn("engine", sql)
+
+    def test_feed_engine(self):
+        res = self.backend.feed_engine(
+            engine="Amazon S3 Tables",
+            records=[
+                {
+                    "reference_name": "chr17",
+                    "start": 43044295,
+                    "end": 43044295,
+                    "reference_bases": "A",
+                    "alternate_bases": "G",
+                    "sample_id": "sample_001",
+                    "genotype": "0/1",
+                    "attributes": "{\"gene\": \"BRCA1\"}"
+                }
+            ],
+            cohort_id="cohort_test"
+        )
+        self.assertEqual(res["records_ingested"], 1)
+        self.assertEqual(res["engine"], "s3_tables")
+        self.assertEqual(res["status"], "COMPLETED")
+
 
 if __name__ == "__main__":
     unittest.main()

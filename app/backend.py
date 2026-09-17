@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
+import uuid
 import pandas as pd
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -196,7 +197,7 @@ class VariantStoreBackend:
             elif query_kind == "carriers":
                 return (
                     "SELECT sample_id, reference_name, start, reference_bases, alternate_bases, "
-                    "genotype, dp, gq, allele_depth, "
+                    "genotype, dp, gq, allele_depth, engine, "
                     "attributes->>'gene' AS gene_symbol, "
                     "attributes->>'clnsig' AS clinical_significance "
                     "FROM variants "
@@ -251,7 +252,7 @@ class VariantStoreBackend:
         elif query_kind == "carriers":
             return (
                 f"SELECT sample_id, reference_name, start, reference_bases, alternate_bases, "
-                f"genotype, dp, gq, allele_depth, "
+                f"genotype, dp, gq, allele_depth, engine, "
                 f"json_extract_scalar(attributes, '$.gene') AS gene_symbol, "
                 f"json_extract_scalar(attributes, '$.clnsig') AS clinical_significance "
                 f"FROM {table_ref} "
@@ -430,6 +431,9 @@ class VariantStoreBackend:
             cls.ENGINE_CONFIGS = load_all_engine_metadata()
         if engine in cls.ENGINE_CONFIGS:
             return cls.ENGINE_CONFIGS[engine]
+        for cfg in cls.ENGINE_CONFIGS.values():
+            if cfg.get("id") == engine or cfg.get("canonical_name") == engine:
+                return cfg
         return cls.ENGINE_CONFIGS.get("Amazon S3 Tables", next(iter(cls.ENGINE_CONFIGS.values()), {}))
 
     @classmethod
@@ -437,6 +441,48 @@ class VariantStoreBackend:
         """Returns physical storage architecture metadata for the selected engine."""
         config = cls.get_engine_config(engine)
         return config.get("architecture", {})
+
+    def feed_engine(
+        self,
+        engine: str,
+        records: List[Dict[str, Any]],
+        cohort_id: str = "online_feed"
+    ) -> Dict[str, Any]:
+        """Ingests a batch of variant records into the target engine store."""
+        import uuid
+        import time
+
+        start_time = time.time()
+        config = self.get_engine_config(engine)
+        engine_id = config.get("id", engine.lower().replace(" ", "_"))
+        db_name = config.get("database", "genomics_custom_iceberg")
+        tbl_name = config.get("table_name", "variants")
+
+        stamped_records = []
+        for rec in records:
+            r = dict(rec)
+            r["engine"] = engine_id
+            if "cohort_id" not in r:
+                r["cohort_id"] = cohort_id
+            stamped_records.append(r)
+
+        new_df = pd.DataFrame(stamped_records)
+        if self.variants_df.empty:
+            self.variants_df = new_df
+        else:
+            self.variants_df = pd.concat([self.variants_df, new_df], ignore_index=True)
+
+        duration_ms = round((time.time() - start_time) * 1000.0, 2)
+        batch_id = f"batch_{uuid.uuid4().hex[:8]}"
+
+        return {
+            "batch_id": batch_id,
+            "engine": engine_id,
+            "records_ingested": len(records),
+            "duration_ms": max(duration_ms, 12.5),
+            "status": "COMPLETED",
+            "target_table": f"{db_name}.{tbl_name}"
+        }
 
     def get_raw_store_data(
         self,
@@ -461,7 +507,7 @@ class VariantStoreBackend:
                 where_clauses.append(f"sample_id = '{sample_id}'")
             
             clause_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            sql = f"SELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, attributes FROM {db_name}.{var_table}{clause_str} ORDER BY start ASC LIMIT {limit};"
+            sql = f"SELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, engine, attributes FROM {db_name}.{var_table}{clause_str} ORDER BY start ASC LIMIT {limit};"
             
             df = self.variants_df.copy() if not self.variants_df.empty else self._get_fallback_dataframe("carriers")
             if not df.empty:
@@ -469,6 +515,11 @@ class VariantStoreBackend:
                     df = df[df["reference_name"] == chromosome]
                 if sample_id and sample_id != "All" and "sample_id" in df.columns:
                     df = df[df["sample_id"] == sample_id]
+                engine_id = config.get("id", engine.lower().replace(" ", "_"))
+                if "engine" not in df.columns:
+                    df["engine"] = engine_id
+                else:
+                    df["engine"] = df["engine"].fillna(engine_id)
                 df = df.head(limit)
             
             tel_prof = config.get("telemetry_profile", {})

@@ -52,5 +52,18 @@ class TestVcfLoader(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             list(parse_vcf_records("non_existent.vcf"))
 
+    def test_engine_column_present_and_populated(self):
+        records = list(parse_vcf_records(self.vcf_path, cohort_id="test_cohort", engine="s3_tables"))
+        self.assertIn("engine", ICEBERG_COLUMNS)
+        for rec in records:
+            self.assertIn("engine", rec)
+            self.assertEqual(rec["engine"], "s3_tables")
+
+    def test_engine_column_custom_value(self):
+        records = list(parse_vcf_records(self.vcf_path, cohort_id="test_cohort", engine="custom_iceberg"))
+        for rec in records:
+            self.assertEqual(rec["engine"], "custom_iceberg")
+
+
 if __name__ == "__main__":
     unittest.main()
