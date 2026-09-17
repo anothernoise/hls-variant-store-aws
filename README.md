@@ -56,6 +56,7 @@ All core technical decisions and trade-offs are documented in [`docs/adr/`](docs
 ├── deploy/terraform/         # Terraform IaC (S3 Tables, Custom Iceberg, Athena, OMOP, KMS, Lake Formation)
 ├── docs/
 │   ├── architecture.md       # Solution design, trade-offs, and NFRs
+│   ├── summary.md            # SA evaluation matrix, access patterns, Well-Architected pillars
 │   ├── exercises.md          # Step-by-step lab exercise guide
 │   └── adr/                  # Architecture Decision Records (ADR-001 through ADR-004)
 ├── samples/
