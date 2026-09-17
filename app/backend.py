@@ -344,6 +344,13 @@ class VariantStoreBackend:
             offline=is_offline
         )
 
+        if not df.empty:
+            engine_id = config.get("id", engine.lower().replace(" ", "_"))
+            if "engine" not in df.columns:
+                df["engine"] = engine_id
+            else:
+                df["engine"] = df["engine"].fillna(engine_id)
+
         telemetry = {
             "engine": engine,
             "latency_ms": round(latency, 1),
@@ -511,15 +518,22 @@ class VariantStoreBackend:
             
             df = self.variants_df.copy() if not self.variants_df.empty else self._get_fallback_dataframe("carriers")
             if not df.empty:
+                engine_id = config.get("id", engine.lower().replace(" ", "_"))
+                if "engine" in df.columns:
+                    engine_specific = df[df["engine"] == engine_id]
+                    if not engine_specific.empty:
+                        df = engine_specific
+                    else:
+                        df = df.copy()
+                        df["engine"] = engine_id
+                else:
+                    df = df.copy()
+                    df["engine"] = engine_id
+
                 if chromosome and chromosome != "All" and "reference_name" in df.columns:
                     df = df[df["reference_name"] == chromosome]
                 if sample_id and sample_id != "All" and "sample_id" in df.columns:
                     df = df[df["sample_id"] == sample_id]
-                engine_id = config.get("id", engine.lower().replace(" ", "_"))
-                if "engine" not in df.columns:
-                    df["engine"] = engine_id
-                else:
-                    df["engine"] = df["engine"].fillna(engine_id)
                 df = df.head(limit)
             
             tel_prof = config.get("telemetry_profile", {})
