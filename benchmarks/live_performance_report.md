@@ -1,7 +1,7 @@
 # Live Performance, Scalability & Architecture Benchmark Report: Amazon S3 Tables vs. S3 + Apache Iceberg
 
 **Executive Summary & Production Assessment**  
-**Environment**: AWS Account `792957228577` | Region `us-east-1` | Athena WorkGroup `hls-variant-store-dev`  
+**Environment**: AWS Account `<annonimiazed>` | Region `<annonimiazed>` | Athena WorkGroup `hls-variant-store-dev`  
 **Date**: September 17, 2026  
 **Infrastructure**: KMS-CMK (`alias/hls-variant-store-dev`), Lake Formation v3, S3 Tables & Custom S3 Iceberg Warehouse
 
