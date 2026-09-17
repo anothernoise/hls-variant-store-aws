@@ -450,6 +450,25 @@ python3 ingest/healthomics/manage_omics_store.py --action import-vcf \
 
 ---
 
+## Capstone: Solution Architect Real-World Case Studies & Architectural Decisions
+
+After completing the hands-on lab exercises and gathering live telemetry, apply your findings to three real-world customer architectural scenarios detailed in **[`docs/sa_case_studies.md`](sa_case_studies.md)**:
+
+1. **Case Study 1 (Fully Solved Reference Architecture)**:
+   - *Customer*: National Genomic Medicine Service (50,000 WGS Cohort).
+   - *Challenge*: Balancing <100ms bedside clinical alerts with low-cost population-scale OMOP analytics.
+   - *Solution*: Dual-Tier Architecture (**Amazon S3 Tables** + **Amazon Aurora Serverless v2**).
+2. **Case Study 2 (SA Challenge Task A — To Solve)**:
+   - *Customer*: Global Population Genetics Consortium (500,000 WGS Cohort).
+   - *Challenge*: Genome-Wide Association Studies (GWAS) and LD pruning with bursty Spot compute and zero idle cost.
+3. **Case Study 3 (SA Challenge Task B — To Solve)**:
+   - *Customer*: Global Precision Oncology & Clinical Trial Matching Platform (30,000 Cancer Patients).
+   - *Challenge*: Real-time somatic biomarker matching and cross-cloud zero-copy data sharing with external partners.
+
+👉 **Proceed to [`docs/sa_case_studies.md`](sa_case_studies.md) to review the solved reference architecture and solve Challenge Tasks A & B.**
+
+---
+
 ## Bootcamp Troubleshooting & Common Pitfalls
 
 | Issue | Root Cause | Solution |

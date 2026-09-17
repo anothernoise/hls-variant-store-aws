@@ -91,3 +91,13 @@ When evaluating relational databases for genomic metadata and targeted variant q
 2. **Databricks Ecosystem Integration**: Deploy **Delta Lake on S3** when bioinformatics pipelines are centered around Databricks Lakehouse, utilizing Liquid Clustering on `(reference_name, start)` for rapid region queries.
 3. **Clinical Serving & Metadata Tier**: Use **Amazon Aurora Serverless v2 (PostgreSQL)** to store patient-sample mapping, clinical phenotype tables, and targeted pathogenic variant alerts requiring sub-10ms transactional lookups.
 4. **Statistical Genetics & GWAS**: Deploy **Hail VDS on Amazon EMR** as a compute-adjacent staging format when calculating cohort-wide link disequilibrium (LD), principal component analysis (PCA), or running large-scale association studies.
+
+---
+
+## 6. Real-World Solution Architect Case Studies
+
+To see how these principles and the decision matrix apply to real-world customer architectures, consult **[`docs/sa_case_studies.md`](sa_case_studies.md)**:
+- **Case Study 1 (Fully Solved Reference Architecture)**: National Genomic Medicine Service (50,000 WGS Cohort) — Dual-Tier Lakehouse (**Amazon S3 Tables** + **Amazon Aurora Serverless v2**).
+- **Case Study 2 (SA Challenge Task A — To Solve)**: Global Population Genetics Consortium (500,000 WGS Biobank) — Ephemeral Spark / **Hail VDS on EMR Spot**.
+- **Case Study 3 (SA Challenge Task B — To Solve)**: Global Precision Oncology Platform (30,000 Cancer Patients) — **Delta Lake on S3** with **Delta Sharing**.
+

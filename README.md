@@ -55,12 +55,19 @@ All core technical decisions and trade-offs are documented in [`docs/adr/`](docs
 - [ADR-003: PHI Governance & Column-Level Security](docs/adr/ADR-003-phi-governance-and-column-level-security.md)
 - [ADR-004: Multimodal Genotype-Phenotype Federation (OMOP CDM)](docs/adr/ADR-004-multimodal-genotype-phenotype-federation.md)
 
+## Solution Architect Case Studies & Decision Framework
+
+Real-world customer scenarios and architectural decision rubrics are documented in **[`docs/sa_case_studies.md`](docs/sa_case_studies.md)**:
+- **Case Study 1 (Fully Solved Example)**: National Genomic Medicine Service (50K WGS) — Dual-Tier Lakehouse (S3 Tables + Aurora Serverless v2).
+- **Case Study 2 (SA Challenge Task A)**: Global Population Genetics Consortium (500K WGS) — Ephemeral Hail VDS on EMR Spot.
+- **Case Study 3 (SA Challenge Task B)**: Global Precision Oncology Platform (30K Patients) — Delta Lake on S3 with Delta Sharing.
+
 ## Repo Layout
 
 ```
 .
 ├── app/                      # Interactive Plotly Dash multi-engine explorer web app
-│   ├── app.py                # Dash UI layout, multi-engine dropdown & 5 discovery tabs
+│   ├── app.py                # Dash UI layout, multi-engine dropdown & 6 discovery tabs
 │   ├── backend.py            # Data access abstraction layer (Athena + deterministic fallback)
 │   └── requirements.txt      # Web app Python dependencies
 ├── deploy/terraform/         # Terraform IaC (S3 Tables, Iceberg, Athena, RDS, Aurora, HealthOmics, KMS)
@@ -68,6 +75,7 @@ All core technical decisions and trade-offs are documented in [`docs/adr/`](docs
 │   ├── architecture.md       # Solution design, trade-offs, and NFRs
 │   ├── summary.md            # SA evaluation matrix, decision tree, Well-Architected pillars
 │   ├── exercises.md          # Step-by-step lab exercise guide (Exercises 1 through 6)
+│   ├── sa_case_studies.md    # Real-world SA case studies (1 solved, 2 challenge tasks)
 │   └── adr/                  # Architecture Decision Records (ADR-001 through ADR-004)
 ├── samples/
 │   ├── generate_synthetic_data.py # Deterministic multi-sample gVCF & OMOP generator
