@@ -162,6 +162,7 @@ class VariantStoreApiClient:
             "engine_summary": summary,
             "query_benchmarks": suite_res.get("query_benchmarks", []),
             "n1_benchmarks": suite_res.get("n1_benchmarks", {}),
+            "cohort_scaling_curve": suite_res.get("cohort_scaling_curve", []),
             "ai_analysis": ai
         }
 

@@ -86,10 +86,19 @@ class TestUICallbacks(unittest.TestCase):
 
     def test_handle_run_benchmark(self):
         from app.app import handle_run_benchmark
-        result = handle_run_benchmark(n_clicks=1, mode="simulated", cohort_size=50)
+        result = handle_run_benchmark(n_clicks=1, cohort_size=50, mode="simulated")
         self.assertIsNotNone(result)
         self.assertIn("AI Architectural Reasoning", str(result))
         self.assertIn("50 Samples", str(result))
+
+    def test_handle_run_benchmark_reactive_cohort_change(self):
+        from app.app import handle_run_benchmark
+        # Changing cohort dropdown without clicking button
+        result = handle_run_benchmark(n_clicks=None, cohort_size=250, mode="simulated")
+        self.assertIsNotNone(result)
+        self.assertIn("250 Samples", str(result))
+        self.assertIn("Scaling Trajectory", str(result))
+
 
 
 if __name__ == "__main__":

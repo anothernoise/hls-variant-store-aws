@@ -114,6 +114,7 @@ def run_benchmarks_endpoint(request: BenchmarkRunRequest):
         cohort_size=request.cohort_size,
         mode=request.mode
     )
+    scaling_curve = suite_result.get("cohort_scaling_curve", [])
 
     # Save to latest_metrics.json
     output_payload = {
@@ -123,6 +124,7 @@ def run_benchmarks_endpoint(request: BenchmarkRunRequest):
         "engine_summary": [item.model_dump() for item in engine_summary],
         "query_benchmarks": query_benchmarks,
         "n1_benchmarks": n1_benchmarks,
+        "cohort_scaling_curve": scaling_curve,
         "ai_analysis": ai_analysis
     }
     try:
@@ -139,7 +141,9 @@ def run_benchmarks_endpoint(request: BenchmarkRunRequest):
         engine_summary=engine_summary,
         query_benchmarks=query_benchmarks,
         n1_benchmarks=n1_benchmarks,
+        cohort_scaling_curve=scaling_curve,
         ai_analysis=ai_analysis
     )
+
 
 

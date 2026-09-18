@@ -401,14 +401,45 @@ def run_benchmark_suite(
 
     engine_summary = build_engine_summary(query_results)
     n1_results = run_n1_ingest_benchmark(batch1_size=cohort_size // 2, batch2_size=cohort_size // 2)
+    scaling_curve = generate_cohort_scaling_curve(target_strategies)
 
     return {
         "mode": mode,
         "cohort_size": cohort_size,
         "query_benchmarks": query_results,
         "engine_summary": engine_summary,
-        "n1_benchmarks": n1_results
+        "n1_benchmarks": n1_results,
+        "cohort_scaling_curve": scaling_curve
     }
+
+
+def generate_cohort_scaling_curve(
+    strategies: Optional[List[str]] = None,
+    cohort_sizes: Optional[List[int]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Computes composite latency across standard cohort sample sizes
+    [10, 50, 100, 250, 500, 1000, 2500] for direct cross-cohort scaling comparison.
+    """
+    target_strategies = strategies or LAKEHOUSE_STRATEGIES
+    target_sizes = cohort_sizes or [10, 50, 100, 250, 500, 1000, 2500]
+    curve_points = []
+
+    for size in target_sizes:
+        for strat in target_strategies:
+            af = simulate_query_metrics(strat, "allele_frequency", cohort_size=size)
+            cl = simulate_query_metrics(strat, "carrier_lookup", cohort_size=size)
+            omop = simulate_query_metrics(strat, "omop_join", cohort_size=size)
+            avg_latency = round((af["execution_time_ms"] + cl["execution_time_ms"] + omop["execution_time_ms"]) / 3.0, 1)
+            curve_points.append({
+                "cohort_size": size,
+                "engine": strat,
+                "composite_latency_ms": avg_latency,
+                "mb_scanned": af["mb_scanned"],
+                "cost_usd": af["cost_usd"]
+            })
+    return curve_points
+
 
 
 def format_markdown_table(benchmark_results: List[Dict[str, Any]]) -> str:

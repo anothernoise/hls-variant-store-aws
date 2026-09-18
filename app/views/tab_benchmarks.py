@@ -77,8 +77,8 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
         "cost_per_query": "Cost/Query"
     })
 
-    # Grouped bar chart
-    fig = px.bar(
+    # 1. Detailed scenario breakdown bar chart for current cohort
+    fig_breakdown = px.bar(
         bench_df,
         x="Engine",
         y=["Carrier Lookup (ms)", "Allele Freq (ms)", "OMOP Join (ms)"],
@@ -86,9 +86,57 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
         template="plotly_white",
         color_discrete_sequence=["#0d6efd", "#20c997", "#fd7e14"]
     )
-    fig.update_layout(
+    fig_breakdown.update_layout(
         title=dict(
-            text=f"Multi-Engine Latency SLA Comparison — Cohort Size: {cohort_size} ({mode_label})",
+            text=f"Scenario Latency Breakdown — Cohort Size: {cohort_size} Samples ({mode_label})",
+            font=dict(size=15, color="#212529"),
+            x=0.01,
+            xanchor="left"
+        ),
+        margin=dict(l=20, r=20, t=60, b=60),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.22,
+            xanchor="center",
+            x=0.5,
+            title_text="",
+            font=dict(size=12)
+        )
+    )
+
+    # 2. Multi-Cohort Scaling Trajectory Line Chart
+    cohort_scaling_curve = raw_payload.get("cohort_scaling_curve", [])
+    if not cohort_scaling_curve:
+        from benchmarks.benchmark_runner import generate_cohort_scaling_curve
+        cohort_scaling_curve = generate_cohort_scaling_curve()
+
+    df_curve = pd.DataFrame(cohort_scaling_curve)
+    fig_scaling = px.line(
+        df_curve,
+        x="cohort_size",
+        y="composite_latency_ms",
+        color="engine",
+        markers=True,
+        template="plotly_white",
+        color_discrete_sequence=["#0d6efd", "#20c997", "#fd7e14", "#6f42c1"],
+        labels={
+            "cohort_size": "Cohort Sample Size (Additive)",
+            "composite_latency_ms": "Composite Latency SLA (ms)",
+            "engine": "Architecture"
+        }
+    )
+    fig_scaling.add_vline(
+        x=cohort_size,
+        line_dash="dash",
+        line_color="#dc3545",
+        annotation_text=f"Active: {cohort_size} Samples",
+        annotation_position="top left",
+        annotation_font_color="#dc3545"
+    )
+    fig_scaling.update_layout(
+        title=dict(
+            text=f"Multi-Engine Scaling Trajectory: Latency vs Cohort Scale (10 to 2,500 Samples)",
             font=dict(size=15, color="#212529"),
             x=0.01,
             xanchor="left"
@@ -117,7 +165,7 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
             dbc.Col([
                 dbc.Card([
                     html.Div([
-                        html.Small("Cohort Size Tested", className="text-muted d-block fw-semibold"),
+                        html.Small("Cohort Size Evaluated", className="text-muted d-block fw-semibold"),
                         html.H5(f"{cohort_size} Samples", className="text-primary fw-bold mb-0")
                     ], className="p-3 bg-light rounded border text-center")
                 ])
@@ -141,7 +189,7 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
             dbc.CardHeader([
                 html.I(className="bi bi-robot me-2 text-primary"),
                 html.Span("AI Architectural Reasoning & Recommendation", className="fw-bold"),
-                dbc.Badge(f"{mode_label} EVALUATION", color="info", className="float-end p-2 text-dark fw-bold")
+                dbc.Badge(f"{cohort_size} SAMPLES • {mode_label}", color="info", className="float-end p-2 text-dark fw-bold")
             ], className="bg-white border-bottom py-2"),
             dbc.CardBody([
                 dcc.Markdown(rec_text, className="mb-2 text-secondary"),
@@ -157,12 +205,24 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
             ], className="bg-light bg-opacity-25")
         ], className="border-info shadow-sm mb-4"),
 
-        # 3. Latency SLA Bar Chart
-        dbc.Card([
-            dbc.CardBody([
-                dcc.Graph(figure=fig, config={"displayModeBar": False})
-            ])
-        ], className="border-0 shadow-sm mb-4"),
+        # 3. Dual Comparative Charts: Multi-Cohort Scaling Curve & Selected Cohort Breakdown
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        dcc.Graph(figure=fig_scaling, config={"displayModeBar": False})
+                    ])
+                ], className="border-0 shadow-sm mb-4")
+            ], lg=6, md=12),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        dcc.Graph(figure=fig_breakdown, config={"displayModeBar": False})
+                    ])
+                ], className="border-0 shadow-sm mb-4")
+            ], lg=6, md=12),
+        ], className="g-3"),
+
 
         # 4. Detailed Data Table & N+1 Append Benchmark
         dbc.Row([

@@ -7,6 +7,7 @@ Built with Plotly Dash & Dash Bootstrap Components.
 import os
 import sys
 from datetime import datetime, timezone
+from typing import Optional
 
 import dash
 from dash import html, dcc, callback, Input, Output, State
@@ -342,25 +343,24 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
 
 
 # -----------------------------------------------------------------------------
-# Callback: Run Performance Benchmark & Update Results
+# Callback: Run Performance Benchmark & Update Results (Reactive on Dropdowns & Button)
 # -----------------------------------------------------------------------------
 @callback(
     Output("benchmarks-results-container", "children"),
-    [Input("run-benchmark-btn", "n_clicks")],
-    [State("bench-mode-select", "value"),
-     State("bench-cohort-select", "value")],
+    [Input("run-benchmark-btn", "n_clicks"),
+     Input("bench-cohort-select", "value"),
+     Input("bench-mode-select", "value")],
     prevent_initial_call=True
 )
-def handle_run_benchmark(n_clicks: int, mode: str, cohort_size: int):
-    if not n_clicks:
-        from dash.exceptions import PreventUpdate
-        raise PreventUpdate
-
+def handle_run_benchmark(n_clicks: Optional[int], cohort_size: Optional[int], mode: Optional[str]):
+    target_cohort = int(cohort_size) if cohort_size else 100
+    target_mode = mode or "simulated"
     res = api_client.run_benchmarks(
-        mode=mode or "simulated",
-        cohort_size=int(cohort_size or 100)
+        mode=target_mode,
+        cohort_size=target_cohort
     )
     return build_benchmarks_body(res)
+
 
 
 if __name__ == "__main__":

@@ -62,7 +62,9 @@ class BenchmarkRunResponse(BaseModel):
     engine_summary: List[BenchmarkItem] = Field(default_factory=list, description="Per-engine aggregated latency & cost items")
     query_benchmarks: List[Dict[str, Any]] = Field(default_factory=list, description="Granular query scenario results")
     n1_benchmarks: Dict[str, Any] = Field(default_factory=dict, description="N+1 ingestion append metrics")
+    cohort_scaling_curve: List[Dict[str, Any]] = Field(default_factory=list, description="Cross-cohort scaling curve points")
     ai_analysis: Dict[str, Any] = Field(default_factory=dict, description="AI architectural reasoning and performance recommendation")
+
 
 
 class VariantRecordInput(BaseModel):
