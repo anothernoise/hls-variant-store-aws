@@ -10,8 +10,8 @@ import dash_bootstrap_components as dbc
 def render_health_tab(summary: Dict[str, Any], mode_badge: dbc.Badge) -> dbc.Card:
     """Renders the comprehensive cluster health dashboard tab."""
     cluster_status = summary.get("status", "healthy").upper()
-    total_engines = summary.get("total_engines", 7)
-    active_count = summary.get("active_engines", 7)
+    total_engines = summary.get("total_engines", 4)
+    active_count = summary.get("active_engines", 4)
     not_deployed_count = summary.get("not_deployed_engines", 0)
     probe_latency = summary.get("probe_latency_ms", 0.0)
     engines_dict = summary.get("engines", {})
