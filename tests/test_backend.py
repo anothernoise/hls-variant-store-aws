@@ -243,11 +243,18 @@ class TestBackendMetadata(unittest.TestCase):
         self.assertEqual(health["deployment_status"], "ACTIVE")
         self.assertIn("checks", health)
 
-    def test_check_engine_health_rds_not_deployed(self):
+    def test_check_engine_health_rds_active(self):
         health = self.backend.check_engine_health("Amazon RDS PostgreSQL", offline=True)
         self.assertEqual(health["engine_id"], "rds_postgres")
-        self.assertEqual(health["status"], "warn")
-        self.assertEqual(health["deployment_status"], "NOT_DEPLOYED")
+        self.assertEqual(health["status"], "pass")
+        self.assertEqual(health["deployment_status"], "ACTIVE")
+        self.assertIn("checks", health)
+
+    def test_rds_postgres_queries(self):
+        df, meta = self.backend.get_allele_frequencies("Amazon RDS PostgreSQL", offline=True)
+        self.assertFalse(df.empty)
+        self.assertIn("latency_ms", meta)
+        self.assertEqual(meta["engine"], "Amazon RDS PostgreSQL")
 
     def test_check_all_engines_health(self):
         summary = self.backend.check_all_engines_health(offline=True)

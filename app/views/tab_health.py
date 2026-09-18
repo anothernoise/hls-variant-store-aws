@@ -11,8 +11,8 @@ def render_health_tab(summary: Dict[str, Any], mode_badge: dbc.Badge) -> dbc.Car
     """Renders the comprehensive cluster health dashboard tab."""
     cluster_status = summary.get("status", "healthy").upper()
     total_engines = summary.get("total_engines", 7)
-    active_count = summary.get("active_engines", 6)
-    not_deployed_count = summary.get("not_deployed_engines", 1)
+    active_count = summary.get("active_engines", 7)
+    not_deployed_count = summary.get("not_deployed_engines", 0)
     probe_latency = summary.get("probe_latency_ms", 0.0)
     engines_dict = summary.get("engines", {})
 

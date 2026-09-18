@@ -98,17 +98,6 @@ class VariantStoreBackend:
         config = self.get_engine_config(engine)
         db_name = config.get("database", "genomics_custom_iceberg")
 
-        if not is_offline and "RDS PostgreSQL" in engine:
-            return pd.DataFrame(), {
-                "engine": engine,
-                "latency_ms": 0.0,
-                "scanned_bytes": 0,
-                "query_type": "Allele Frequency Rollup",
-                "mode": "online",
-                "status": "NOT_DEPLOYED",
-                "error": "Engine stack is NOT_DEPLOYED. Deploy via scripts/manage_infra.py --action deploy --engines postgres_rds."
-            }
-
         df, latency, scanned, mode = self.run_athena_sql(
             sql=sql,
             database=db_name if "/" not in db_name else "default",
@@ -144,17 +133,6 @@ class VariantStoreBackend:
         config = self.get_engine_config(engine)
         db_name = config.get("database", "genomics_custom_iceberg")
 
-        if not is_offline and "RDS PostgreSQL" in engine:
-            return pd.DataFrame(), {
-                "engine": engine,
-                "latency_ms": 0.0,
-                "scanned_bytes": 0,
-                "query_type": "Pathogenic Carrier Point Lookup",
-                "mode": "online",
-                "status": "NOT_DEPLOYED",
-                "error": "Engine stack is NOT_DEPLOYED."
-            }
-
         df, latency, scanned, mode = self.run_athena_sql(
             sql=sql,
             database=db_name if "/" not in db_name else "default",
@@ -186,17 +164,6 @@ class VariantStoreBackend:
         config = self.get_engine_config(engine)
         db_name = config.get("database", "genomics_custom_iceberg")
 
-        if not is_offline and "RDS PostgreSQL" in engine:
-            return pd.DataFrame(), {
-                "engine": engine,
-                "latency_ms": 0.0,
-                "scanned_bytes": 0,
-                "query_type": "Gene Burden Rollup",
-                "mode": "online",
-                "status": "NOT_DEPLOYED",
-                "error": "Engine stack is NOT_DEPLOYED."
-            }
-
         df, latency, scanned, mode = self.run_athena_sql(
             sql=sql,
             database=db_name if "/" not in db_name else "default",
@@ -220,17 +187,6 @@ class VariantStoreBackend:
         sql = self.build_engine_sql(engine, query_kind="omop")
         config = self.get_engine_config(engine)
         db_name = config.get("database", "genomics_custom_iceberg")
-
-        if not is_offline and "RDS PostgreSQL" in engine:
-            return pd.DataFrame(), {
-                "engine": engine,
-                "latency_ms": 0.0,
-                "scanned_bytes": 0,
-                "query_type": "Genotype-Phenotype OMOP Join",
-                "mode": "online",
-                "status": "NOT_DEPLOYED",
-                "error": "Engine stack is NOT_DEPLOYED."
-            }
 
         df, latency, scanned, mode = self.run_athena_sql(
             sql=sql,

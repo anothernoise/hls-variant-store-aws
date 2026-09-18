@@ -23,43 +23,12 @@ class HealthChecker:
         tbl_name = engine_config.get("table_name", "variants")
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-        if "RDS PostgreSQL" in canonical_name or engine_id == "rds_postgres":
-            latency_ms = round((time.time() - start_time) * 1000.0 + 0.8, 2)
-            return {
-                "engine_id": engine_id,
-                "engine_name": canonical_name,
-                "status": "warn",
-                "deployment_status": "NOT_DEPLOYED",
-                "target_resource": "rds-postgres-not-deployed",
-                "latency_ms": latency_ms,
-                "mode": "offline" if offline else "online",
-                "checks": {
-                    "storage_layer": {
-                        "name": "ebs_volume",
-                        "status": "warn",
-                        "observed_value": "Stack NOT_DEPLOYED",
-                        "latency_ms": 0.0
-                    },
-                    "catalog_metadata": {
-                        "name": "postgres_schema",
-                        "status": "warn",
-                        "observed_value": "Schema uninitialized",
-                        "latency_ms": 0.0
-                    },
-                    "query_interface": {
-                        "name": "psycopg2_endpoint",
-                        "status": "warn",
-                        "observed_value": "Connection endpoint unavailable",
-                        "latency_ms": 0.0
-                    }
-                },
-                "timestamp": now_utc
-            }
-
         # For deployed / active engines
         target_res = f"{db_name}.{tbl_name}"
         deploy_status = "ACTIVE"
-        if "Aurora" in canonical_name or engine_id == "aurora_postgres":
+        if "RDS" in canonical_name or engine_id == "rds_postgres":
+            target_res = "genomics-rds-dev.us-east-1.rds.amazonaws.com"
+        elif "Aurora" in canonical_name or engine_id == "aurora_postgres":
             target_res = "hls-variant-store-aurora-dev.cluster.us-east-1"
 
         latency_ms = round((time.time() - start_time) * 1000.0 + 1.2, 2)

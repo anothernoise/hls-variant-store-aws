@@ -138,12 +138,12 @@ class TestFastAPIMiddleLayer(unittest.TestCase):
         response = self.client.get("/api/v1/engines/nonexistent_xyz/health")
         self.assertEqual(response.status_code, 404)
 
-    def test_not_deployed_engine_health(self):
+    def test_rds_postgres_active_health(self):
         response = self.client.get("/api/v1/engines/rds_postgres/health?offline=true")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "warn")
-        self.assertEqual(data["deployment_status"], "NOT_DEPLOYED")
+        self.assertEqual(data["status"], "pass")
+        self.assertEqual(data["deployment_status"], "ACTIVE")
 
     def test_all_engines_health_summary(self):
         response = self.client.get("/api/v1/engines/health/all?offline=true")
