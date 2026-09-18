@@ -311,6 +311,7 @@ def render_tab_content(active_tab, engine, is_online):
                 html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
             ], color="warning", className="shadow-sm border-0")
 
+        hover_cols = [c for c in ["clinical_significance", "engine"] if c in df.columns]
         fig = px.bar(
             df,
             x="start",
@@ -318,7 +319,7 @@ def render_tab_content(active_tab, engine, is_online):
             color="gene_symbol" if "gene_symbol" in df else "gene",
             title=f"Cohort Allele Frequency Distribution — Engine: {engine}",
             labels={"start": "Genomic Coordinate (Start)", "carrier_frequency": "Carrier Frequency"},
-            hover_data=["clinical_significance"] if "clinical_significance" in df else None,
+            hover_data=hover_cols if hover_cols else None,
             template="plotly_white"
         )
         fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
@@ -326,8 +327,10 @@ def render_tab_content(active_tab, engine, is_online):
             dbc.CardHeader([
                 html.Span("Cohort Allele Frequency & Annotation Overview", className="fw-bold me-2"),
                 mode_badge,
-                dbc.Badge(f"Engine: {engine}", color="primary", className="float-end")
-            ], className="bg-white border-bottom py-3"),
+                dbc.Badge(f"Latency: {meta.get('latency_ms', 0)} ms", color="info", className="ms-2 me-2"),
+                dbc.Badge(f"Target DB: {meta.get('target_database', 'default')}", color="secondary", className="me-2"),
+                dbc.Badge(f"Engine: {engine}", color="primary", className="float-end p-2")
+            ], className="bg-white border-bottom py-3 d-flex align-items-center flex-wrap"),
             dbc.CardBody([
                 dcc.Graph(figure=fig, className="mb-4"),
                 html.H6("Tabular Variant Frequency Records", className="fw-bold text-muted mb-2"),
@@ -337,7 +340,20 @@ def render_tab_content(active_tab, engine, is_online):
                     page_size=6,
                     style_table={"overflowX": "auto"},
                     style_header={"backgroundColor": "#f8f9fa", "fontWeight": "bold", "color": "#495057"},
-                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"}
+                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
+                    style_data_conditional=[
+                        {
+                            "if": {"column_id": "engine"},
+                            "fontFamily": "monospace",
+                            "fontWeight": "bold",
+                            "color": "#0d6efd"
+                        },
+                        {
+                            "if": {"column_id": "carrier_frequency"},
+                            "fontWeight": "bold",
+                            "color": "#198754"
+                        }
+                    ]
                 )
             ])
         ], className="shadow-sm border-0")

@@ -166,10 +166,10 @@ class VariantStoreBackend:
             ])
         else: # "af"
             return pd.DataFrame([
-                {"reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "total_cohort_samples": "10", "alt_carrier_count": "4", "carrier_frequency": "0.4000", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
-                {"reference_name": "chr21", "start": "31659787", "reference_bases": "C", "alternate_bases": "T", "total_cohort_samples": "10", "alt_carrier_count": "4", "carrier_frequency": "0.4000", "gene_symbol": "SOD1", "clinical_significance": "PATHOGENIC"},
-                {"reference_name": "chr1", "start": "100050", "reference_bases": "G", "alternate_bases": "T", "total_cohort_samples": "10", "alt_carrier_count": "3", "carrier_frequency": "0.3000", "gene_symbol": "BRCA1", "clinical_significance": "LIKELY_PATHOGENIC"},
-                {"reference_name": "chr1", "start": "100120", "reference_bases": "T", "alternate_bases": "C", "total_cohort_samples": "10", "alt_carrier_count": "2", "carrier_frequency": "0.2000", "gene_symbol": "BRCA1", "clinical_significance": "BENIGN"},
+                {"engine": "mock_data", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "total_cohort_samples": "10", "alt_carrier_count": "4", "carrier_frequency": "0.4000", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
+                {"engine": "mock_data", "reference_name": "chr21", "start": "31659787", "reference_bases": "C", "alternate_bases": "T", "total_cohort_samples": "10", "alt_carrier_count": "4", "carrier_frequency": "0.4000", "gene_symbol": "SOD1", "clinical_significance": "PATHOGENIC"},
+                {"engine": "mock_data", "reference_name": "chr1", "start": "100050", "reference_bases": "G", "alternate_bases": "T", "total_cohort_samples": "10", "alt_carrier_count": "3", "carrier_frequency": "0.3000", "gene_symbol": "BRCA1", "clinical_significance": "LIKELY_PATHOGENIC"},
+                {"engine": "mock_data", "reference_name": "chr1", "start": "100120", "reference_bases": "T", "alternate_bases": "C", "total_cohort_samples": "10", "alt_carrier_count": "2", "carrier_frequency": "0.2000", "gene_symbol": "BRCA1", "clinical_significance": "BENIGN"},
             ])
 
     def build_engine_sql(self, engine: str, query_kind: str = "af", gene: str = "APP") -> str:
@@ -177,13 +177,14 @@ class VariantStoreBackend:
         config = self.get_engine_config(engine)
         db_name = config.get("database", "genomics_custom_iceberg")
         tbl_name = config.get("table_name", "variants")
+        engine_id = config.get("id", engine.lower().replace(" ", "_"))
 
         is_postgres = "PostgreSQL" in engine or "postgres" in db_name.lower()
 
         if is_postgres:
             if query_kind == "af":
                 return (
-                    "SELECT reference_name, start, reference_bases, alternate_bases, "
+                    f"SELECT '{engine_id}' AS engine, reference_name, start, reference_bases, alternate_bases, "
                     "COUNT(DISTINCT sample_id) AS total_cohort_samples, "
                     "COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS alt_carrier_count, "
                     "ROUND(CAST(COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS numeric) / "
@@ -238,7 +239,7 @@ class VariantStoreBackend:
 
         if query_kind == "af":
             return (
-                "SELECT reference_name, start, reference_bases, alternate_bases, "
+                f"SELECT '{engine_id}' AS engine, reference_name, start, reference_bases, alternate_bases, "
                 "COUNT(DISTINCT sample_id) AS total_cohort_samples, "
                 "COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS alt_carrier_count, "
                 "ROUND(CAST(COUNT(CASE WHEN genotype IN ('0/1', '1/1') THEN 1 END) AS double) / "
@@ -309,6 +310,17 @@ class VariantStoreBackend:
             query_kind="af",
             offline=is_offline
         )
+
+        if not df.empty:
+            engine_id = config.get("id", engine.lower().replace(" ", "_"))
+            df = df.copy()
+            if is_offline:
+                df["engine"] = "mock_data"
+            else:
+                df["engine"] = engine_id
+            # Move engine to first column
+            cols = ["engine"] + [c for c in df.columns if c != "engine"]
+            df = df[cols]
 
         telemetry = {
             "engine": engine,

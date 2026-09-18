@@ -114,6 +114,7 @@ class TestBackendMetadata(unittest.TestCase):
         self.assertFalse(df.empty)
         self.assertIn("latency_ms", telemetry)
         self.assertIn("scanned_bytes", telemetry)
+        self.assertIn("engine", df.columns)
 
     def test_get_pathogenic_carriers(self):
         df, telemetry = self.backend.get_pathogenic_carriers(
@@ -157,6 +158,8 @@ class TestBackendMetadata(unittest.TestCase):
         df, telemetry = self.backend.get_allele_frequencies("Amazon S3 Tables", offline=True)
         self.assertFalse(df.empty)
         self.assertEqual(telemetry["mode"], "offline")
+        self.assertIn("engine", df.columns)
+        self.assertEqual(df["engine"].iloc[0], "mock_data")
 
     def test_get_pathogenic_carriers_offline(self):
         df, telemetry = self.backend.get_pathogenic_carriers("Custom S3 + Iceberg", offline=True)
