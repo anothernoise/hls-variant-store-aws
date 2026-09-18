@@ -52,6 +52,7 @@ app.include_router(engines.router)
 app.include_router(benchmarks.router)
 
 
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
 @app.get("/api/v1/health", response_model=HealthResponse, tags=["Health"])
 def health_check():
     """System health check and version verification endpoint."""
