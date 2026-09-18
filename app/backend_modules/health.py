@@ -58,11 +58,9 @@ class HealthChecker:
 
         # For deployed / active engines
         target_res = f"{db_name}.{tbl_name}"
+        deploy_status = "ACTIVE"
         if "Aurora" in canonical_name or engine_id == "aurora_postgres":
-            deploy_status = "AVAILABLE"
             target_res = "hls-variant-store-aurora-dev.cluster.us-east-1"
-        else:
-            deploy_status = "ACTIVE"
 
         latency_ms = round((time.time() - start_time) * 1000.0 + 1.2, 2)
         return {
@@ -114,7 +112,7 @@ class HealthChecker:
             eng_id = cfg.get("id", name.lower().replace(" ", "_"))
             h = cls.check_engine_health(name, cfg, offline=offline)
             engines_health[eng_id] = h
-            if h["deployment_status"] in ("ACTIVE", "AVAILABLE"):
+            if h["deployment_status"] == "ACTIVE":
                 active_count += 1
             elif h["deployment_status"] == "NOT_DEPLOYED":
                 not_deployed_count += 1
