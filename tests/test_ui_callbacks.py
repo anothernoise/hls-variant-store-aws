@@ -46,6 +46,24 @@ class TestUICallbacks(unittest.TestCase):
         )
         self.assertIsInstance(card, dbc.Card)
 
+    def test_render_tab_content_rds_postgres(self):
+        card = render_tab_content(
+            active_tab="tab-af",
+            engine="Amazon RDS PostgreSQL",
+            is_online=False,
+            refresh_clicks=1
+        )
+        self.assertIsInstance(card, dbc.Card)
+        body = card.children[1]
+        dt = body.children[2]
+        self.assertGreater(len(dt.data), 0)
+
+    def test_update_telemetry_badge_rds(self):
+        from app.app import update_telemetry_badge
+        badge_card = update_telemetry_badge("Amazon RDS PostgreSQL", is_online=False, refresh_clicks=1)
+        self.assertIsInstance(badge_card, dbc.Card)
+        self.assertIn("Health: ACTIVE", str(badge_card))
+
 
 if __name__ == "__main__":
     unittest.main()
