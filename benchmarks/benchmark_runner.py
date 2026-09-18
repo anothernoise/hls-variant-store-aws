@@ -367,6 +367,71 @@ def run_n1_ingest_benchmark(batch1_size: int = 5, batch2_size: int = 5) -> Dict[
     }
 
 
+import concurrent.futures
+
+# Thread-safe catalog probe cache: { "db_name": bool }
+_CATALOG_AVAILABILITY_CACHE: Dict[str, bool] = {}
+
+
+def probe_athena_database_availability(
+    database: str,
+    workgroup: str = "hls-variant-store-dev",
+    region: str = "us-east-1",
+    profile: str = "default"
+) -> bool:
+    """
+    Rapidly checks if an Athena database and table catalog exists and is accessible.
+    Caches the result so unprovisioned cloud tables don't incur redundant timeouts.
+    """
+    if database in _CATALOG_AVAILABILITY_CACHE:
+        return _CATALOG_AVAILABILITY_CACHE[database]
+
+    cmd = [
+        "aws", "athena", "start-query-execution",
+        "--query-string", "SHOW TABLES",
+        "--work-group", workgroup,
+        "--query-execution-context", f"Database={database}",
+        "--region", region,
+        "--output", "json"
+    ]
+    if profile:
+        cmd.extend(["--profile", profile])
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=3)
+        qid = json.loads(proc.stdout).get("QueryExecutionId")
+        if not qid:
+            _CATALOG_AVAILABILITY_CACHE[database] = False
+            return False
+
+        # Quick single check
+        time.sleep(0.3)
+        poll_cmd = [
+            "aws", "athena", "get-query-execution",
+            "--query-execution-id", qid,
+            "--region", region,
+            "--output", "json"
+        ]
+        if profile:
+            poll_cmd.extend(["--profile", profile])
+
+        stat_p = subprocess.run(poll_cmd, capture_output=True, text=True, check=True, timeout=2)
+        info = json.loads(stat_p.stdout).get("QueryExecution", {})
+        state = info.get("Status", {}).get("State", "")
+        if state in ("FAILED", "CANCELLED"):
+            reason = info.get("Status", {}).get("StateChangeReason", "")
+            logger.info(f"Athena database '{database}' not available ({reason}). Fast-falling back to simulation.")
+            _CATALOG_AVAILABILITY_CACHE[database] = False
+            return False
+
+        _CATALOG_AVAILABILITY_CACHE[database] = True
+        return True
+    except Exception as e:
+        logger.info(f"Athena probe for '{database}' failed or timed out ({e}). Fast-falling back to simulation.")
+        _CATALOG_AVAILABILITY_CACHE[database] = False
+        return False
+
+
 def run_benchmark_suite(
     mode: str = "simulated",
     cohort_size: int = 10,
@@ -375,29 +440,65 @@ def run_benchmark_suite(
     profile: str = "default",
     region: str = "us-east-1"
 ) -> Dict[str, Any]:
-    """Runs the full benchmark suite in either simulated or live Athena mode."""
+    """Runs the full benchmark suite in either simulated or live Athena mode with parallel execution."""
     target_strategies = strategies or LAKEHOUSE_STRATEGIES
     queries = ["allele_frequency", "carrier_lookup", "gene_burden", "omop_join"]
 
-    query_results = []
+    # In live mode, probe unique databases upfront once
+    if mode == "live":
+        unique_dbs = {ENGINE_DATABASE_MAP.get(s, "genomics_custom_iceberg") for s in target_strategies}
+        for db in unique_dbs:
+            probe_athena_database_availability(db, workgroup=workgroup, region=region, profile=profile)
+
+    tasks = []
     for q in queries:
         for s in target_strategies:
-            if mode == "live":
-                db = ENGINE_DATABASE_MAP.get(s, "genomics_custom_iceberg")
-                sql = build_live_sql_for_query(q, db)
-                res = run_live_athena_query(
-                    strategy=s,
-                    query_type=q,
-                    sql=sql,
-                    database=db,
-                    workgroup=workgroup,
-                    region=region,
-                    profile=profile,
-                    cohort_size=cohort_size
-                )
-            else:
-                res = simulate_query_metrics(s, q, cohort_size)
-            query_results.append(res)
+            tasks.append((s, q))
+
+    def _execute_single(strat: str, query_t: str) -> Dict[str, Any]:
+        if mode == "live":
+            db = ENGINE_DATABASE_MAP.get(strat, "genomics_custom_iceberg")
+            # Pre-flight check: if database is not available, fast fail to simulation instantly
+            if not probe_athena_database_availability(db, workgroup=workgroup, region=region, profile=profile):
+                sim = simulate_query_metrics(strat, query_t, cohort_size)
+                sim.update({
+                    "status": "UNAVAILABLE",
+                    "error": f"Database {db} not provisioned in us-east-1. Fast simulated fallback.",
+                    "fallback_simulated": True
+                })
+                return sim
+
+            sql = build_live_sql_for_query(query_t, db)
+            return run_live_athena_query(
+                strategy=strat,
+                query_type=query_t,
+                sql=sql,
+                database=db,
+                workgroup=workgroup,
+                region=region,
+                profile=profile,
+                cohort_size=cohort_size
+            )
+        else:
+            return simulate_query_metrics(strat, query_t, cohort_size)
+
+    query_results: List[Dict[str, Any]] = []
+    if mode == "live":
+        # Run live queries concurrently with ThreadPoolExecutor to prevent long sequential waiting
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(tasks), 8)) as executor:
+            future_to_task = {executor.submit(_execute_single, s, q): (s, q) for s, q in tasks}
+            for future in concurrent.futures.as_completed(future_to_task):
+                try:
+                    res = future.result()
+                    query_results.append(res)
+                except Exception as e:
+                    strat, query_t = future_to_task[future]
+                    sim = simulate_query_metrics(strat, query_t, cohort_size)
+                    sim.update({"status": "ERROR", "error": str(e), "fallback_simulated": True})
+                    query_results.append(sim)
+    else:
+        for s, q in tasks:
+            query_results.append(_execute_single(s, q))
 
     engine_summary = build_engine_summary(query_results)
     n1_results = run_n1_ingest_benchmark(batch1_size=cohort_size // 2, batch2_size=cohort_size // 2)

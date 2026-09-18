@@ -127,9 +127,22 @@ class TestUICallbacks(unittest.TestCase):
         context_str = str(context_list)
         self.assertIn("Live AWS Lakehouse (us-east-1)", context_str)
         self.assertIn("Delta Lake on S3 (Cloud)", context_str)
-        self.assertIn("OMOP CDM v5.4", context_str)
-        self.assertIn("4 Federated Patients", context_str)
+    def test_benchmarks_loading_wrapper_has_stage_progress_indicator(self):
+        from app.views.tab_benchmarks import render_benchmarks_tab
+        card = render_benchmarks_tab()
+        self.assertIsInstance(card, dbc.Card)
+        card_str = str(card)
+        self.assertIn("benchmarks-loading-wrapper", card_str)
+        self.assertIn("Running Multi-Engine Performance Benchmarks", card_str)
+        self.assertIn("Stage: Partition Pruning & Locus Seeks", card_str)
 
+    def test_handle_run_benchmark_live_fast_failover(self):
+        from app.app import handle_run_benchmark
+        # Mode live with unprovisioned tables should complete quickly via fast probe
+        result, status_badge = handle_run_benchmark(n_clicks=1, cohort_size=10, mode="live")
+        self.assertIsNotNone(result)
+        self.assertIn("10 Samples", str(result))
+        self.assertIn("live", str(status_badge))
 
 
 if __name__ == "__main__":

@@ -267,7 +267,14 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
 
 
 def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
-    """Renders the complete interactive benchmarks tab shell."""
+    stage_progress_indicator = html.Div([
+        dbc.Spinner(color="primary", type="border", size="lg"),
+        html.Div([
+            html.H5("⚡ Running Multi-Engine Performance Benchmarks...", className="fw-bold text-primary mb-1 mt-3"),
+            html.P("Stage: Partition Pruning & Locus Seeks across 4 Lakehouse Architectures -> Synthesizing AI Architectural Analysis", className="text-muted small mb-0 fw-semibold")
+        ], className="text-center")
+    ], className="d-flex flex-column align-items-center justify-content-center p-5")
+
     return dbc.Card([
         dbc.CardHeader([
             dbc.Row([
@@ -316,9 +323,13 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
             ], className="align-items-center")
         ], className="bg-white border-bottom py-3"),
         dbc.CardBody([
-            html.Div(
-                id="benchmarks-results-container",
-                children=build_benchmarks_body(bench_data)
+            dcc.Loading(
+                id="benchmarks-loading-wrapper",
+                custom_spinner=stage_progress_indicator,
+                children=html.Div(
+                    id="benchmarks-results-container",
+                    children=build_benchmarks_body(bench_data)
+                )
             )
         ], className="p-4")
     ], className="shadow-sm border-0")
