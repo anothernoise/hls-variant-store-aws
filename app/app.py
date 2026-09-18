@@ -57,15 +57,6 @@ sidebar = create_sidebar(supported_engines=VariantStoreBackend.SUPPORTED_ENGINES
 # Main Content Tabs Layout
 # -----------------------------------------------------------------------------
 content = html.Div([
-    dbc.Tabs([
-        dbc.Tab(label="📊 1. Cohort Allele Frequency", tab_id="tab-af"),
-        dbc.Tab(label="🧬 2. Pathogenic Carrier Discovery", tab_id="tab-carriers"),
-        dbc.Tab(label="📈 3. Gene Burden Rollup", tab_id="tab-burden"),
-        dbc.Tab(label="🏥 4. Multimodal OMOP Clinical Join", tab_id="tab-omop"),
-        dbc.Tab(label="⚡ 5. Multi-Engine Latency Benchmarks", tab_id="tab-benchmarks"),
-        dbc.Tab(label="🔍 6. Store Data Explorer", tab_id="tab-raw"),
-        dbc.Tab(label="🩺 7. Engine Health & Status", tab_id="tab-health"),
-    ], id="tabs-main", active_tab="tab-af", className="mb-3 nav-fill border-bottom"),
     dcc.Loading(
         id="main-loading",
         type="circle",
@@ -73,6 +64,7 @@ content = html.Div([
         children=html.Div(id="tab-content", className="mb-4")
     )
 ])
+
 
 # -----------------------------------------------------------------------------
 # App Layout

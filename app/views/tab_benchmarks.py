@@ -83,13 +83,26 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
         x="Engine",
         y=["Carrier Lookup (ms)", "Allele Freq (ms)", "OMOP Join (ms)"],
         barmode="group",
-        title=f"Multi-Engine Latency SLA Comparison (Cohort Size: {cohort_size}, Mode: {mode_label})",
         template="plotly_white",
         color_discrete_sequence=["#0d6efd", "#20c997", "#fd7e14"]
     )
     fig.update_layout(
-        margin=dict(l=20, r=20, t=40, b=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        title=dict(
+            text=f"Multi-Engine Latency SLA Comparison — Cohort Size: {cohort_size} ({mode_label})",
+            font=dict(size=15, color="#212529"),
+            x=0.01,
+            xanchor="left"
+        ),
+        margin=dict(l=20, r=20, t=60, b=60),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.22,
+            xanchor="center",
+            x=0.5,
+            title_text="",
+            font=dict(size=12)
+        )
     )
 
     return html.Div([
@@ -192,8 +205,8 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
             dbc.Row([
                 dbc.Col([
                     html.Span("Multi-Engine Query Latency & Cost Performance Suite", className="fw-bold fs-5 me-2"),
-                    dbc.Badge("Lakehouse Architectures", color="dark", className="p-1 px-2")
-                ], md=6, className="d-flex align-items-center"),
+                    dbc.Badge("Lakehouse Architectures", color="dark", className="p-1 px-2 align-middle")
+                ], lg=5, md=12, className="d-flex align-items-center mb-2 mb-lg-0"),
                 dbc.Col([
                     # Interactive Control Toolbar
                     html.Div([
@@ -208,7 +221,7 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
                                 clearable=False,
                                 className="small"
                             )
-                        ], style={"width": "230px", "marginRight": "8px"}),
+                        ], style={"minWidth": "210px", "flex": "1"}),
                         html.Div([
                             dcc.Dropdown(
                                 id="bench-cohort-select",
@@ -224,13 +237,13 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
                                 clearable=False,
                                 className="small"
                             )
-                        ], style={"width": "140px", "marginRight": "8px"}),
+                        ], style={"minWidth": "130px", "width": "140px"}),
                         dbc.Button([
                             html.I(className="bi bi-play-fill me-1"),
                             "Run Perf Test"
-                        ], id="run-benchmark-btn", color="primary", size="sm", className="fw-bold px-3")
-                    ], className="d-flex align-items-center justify-content-end")
-                ], md=6)
+                        ], id="run-benchmark-btn", color="primary", size="sm", className="fw-bold px-3 text-nowrap")
+                    ], className="d-flex align-items-center justify-content-lg-end justify-content-start flex-wrap gap-2")
+                ], lg=7, md=12)
             ], className="align-items-center")
         ], className="bg-white border-bottom py-3"),
         dbc.CardBody([

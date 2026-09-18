@@ -8,14 +8,34 @@ import dash_bootstrap_components as dbc
 
 
 def create_sidebar(supported_engines: List[str]) -> html.Div:
-    """Creates the left sidebar panel containing engine selector, cohort context, and links."""
+    """Creates the left sidebar panel containing navigation views, engine selector, cohort context, and links."""
     return html.Div([
+        # Navigation Card: Analytics & Discovery Views
+        dbc.Card([
+            dbc.CardHeader([
+                html.I(className="bi bi-compass me-2 text-primary"),
+                html.Span("Analytics & Discovery", className="fw-bold")
+            ], className="bg-light py-2"),
+            dbc.CardBody([
+                dbc.Tabs([
+                    dbc.Tab(label="📊 1. Allele Frequency", tab_id="tab-af", tab_style={"cursor": "pointer"}),
+                    dbc.Tab(label="🧬 2. Carrier Discovery", tab_id="tab-carriers", tab_style={"cursor": "pointer"}),
+                    dbc.Tab(label="📈 3. Gene Burden Rollup", tab_id="tab-burden", tab_style={"cursor": "pointer"}),
+                    dbc.Tab(label="🏥 4. OMOP Clinical Join", tab_id="tab-omop", tab_style={"cursor": "pointer"}),
+                    dbc.Tab(label="⚡ 5. Latency Benchmarks", tab_id="tab-benchmarks", tab_style={"cursor": "pointer"}),
+                    dbc.Tab(label="🔍 6. Store Data Explorer", tab_id="tab-raw", tab_style={"cursor": "pointer"}),
+                    dbc.Tab(label="🩺 7. Engine Health", tab_id="tab-health", tab_style={"cursor": "pointer"}),
+                ], id="tabs-main", active_tab="tab-af", className="nav-pills flex-column sidebar-nav-pills")
+            ], className="p-2")
+        ], className="shadow-sm mb-3 border-0"),
+
         # Control Card 1: Storage Engine Selection
         dbc.Card([
             dbc.CardHeader([
                 html.I(className="bi bi-hdd-network me-2 text-primary"),
                 html.Span("Storage Architecture Tier", className="fw-bold")
             ], className="bg-light py-2"),
+
             dbc.CardBody([
                 html.Div([
                     html.Label("Execution Mode:", className="form-label text-muted small fw-semibold mb-1"),
