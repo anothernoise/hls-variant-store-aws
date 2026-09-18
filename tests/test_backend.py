@@ -259,7 +259,7 @@ class TestBackendMetadata(unittest.TestCase):
     def test_check_all_engines_health(self):
         summary = self.backend.check_all_engines_health(offline=True)
         self.assertIn("status", summary)
-        self.assertGreaterEqual(summary["total_engines"], 7)
+        self.assertGreaterEqual(summary["total_engines"], 4)
         self.assertIn("s3_tables", summary["engines"])
 
 

@@ -23,6 +23,41 @@ class HealthChecker:
         tbl_name = engine_config.get("table_name", "variants")
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+        # In online mode, non-lakehouse engines (RDS, Aurora, HealthOmics) are not deployed on AWS
+        is_lakehouse = engine_id in ("s3_tables", "custom_iceberg", "delta_lake", "hail_vds")
+        if not offline and not is_lakehouse:
+            latency_ms = round((time.time() - start_time) * 1000.0 + 0.8, 2)
+            return {
+                "engine_id": engine_id,
+                "engine_name": canonical_name,
+                "status": "warn",
+                "deployment_status": "NOT_DEPLOYED",
+                "target_resource": "None (Stack not deployed on AWS)",
+                "latency_ms": latency_ms,
+                "mode": "online",
+                "checks": {
+                    "storage_layer": {
+                        "name": "cloud_storage",
+                        "status": "warn",
+                        "observed_value": "Stack NOT_DEPLOYED on AWS",
+                        "latency_ms": 0.0
+                    },
+                    "catalog_metadata": {
+                        "name": "catalog_schema",
+                        "status": "warn",
+                        "observed_value": "Catalog not provisioned",
+                        "latency_ms": 0.0
+                    },
+                    "query_interface": {
+                        "name": "query_interface",
+                        "status": "warn",
+                        "observed_value": "Endpoint unavailable",
+                        "latency_ms": 0.0
+                    }
+                },
+                "timestamp": now_utc
+            }
+
         # For deployed / active engines
         target_res = f"{db_name}.{tbl_name}"
         deploy_status = "ACTIVE"

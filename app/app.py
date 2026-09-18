@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timezone
 
 import dash
-from dash import html, dcc, callback, Input, Output
+from dash import html, dcc, callback, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
 
@@ -218,6 +218,43 @@ def update_telemetry_badge(engine: str, is_online: bool, refresh_clicks: int = 0
             ])
         ], className="p-2")
     ], className="bg-light border")
+
+
+# -----------------------------------------------------------------------------
+# Callback: Dynamically Filter Engine Dropdown by Health API Availability
+# -----------------------------------------------------------------------------
+@callback(
+    [Output("engine-dropdown", "options"),
+     Output("engine-dropdown", "value")],
+    [Input("online-offline-switch", "value"),
+     Input("global-refresh-btn", "n_clicks")],
+    [State("engine-dropdown", "value")]
+)
+def update_engine_dropdown_options(is_online: bool, refresh_clicks: int = 0, current_value: str = "Amazon S3 Tables"):
+    offline = not is_online
+    health_summary = api_client.get_all_engines_health(offline=offline)
+    engines_health = health_summary.get("engines", {})
+
+    available_engines = []
+    for eng_id, h in engines_health.items():
+        if is_online:
+            if h.get("deployment_status") == "ACTIVE" and h.get("status") == "pass":
+                available_engines.append(h.get("engine_name"))
+        else:
+            if h.get("status") in ("pass", "warn") and h.get("deployment_status") != "DISABLED":
+                available_engines.append(h.get("engine_name"))
+
+    if not available_engines:
+        available_engines = [
+            "Amazon S3 Tables",
+            "Custom S3 + Iceberg",
+            "Delta Lake on S3",
+            "Hail VDS (Spark)"
+        ]
+
+    options = [{"label": e, "value": e} for e in available_engines]
+    new_value = current_value if current_value in available_engines else available_engines[0]
+    return options, new_value
 
 
 # -----------------------------------------------------------------------------

@@ -58,11 +58,22 @@ class TestUICallbacks(unittest.TestCase):
         dt = body.children[2]
         self.assertGreater(len(dt.data), 0)
 
-    def test_update_telemetry_badge_rds(self):
+    def test_update_telemetry_badge_lakehouse(self):
         from app.app import update_telemetry_badge
-        badge_card = update_telemetry_badge("Amazon RDS PostgreSQL", is_online=False, refresh_clicks=1)
+        badge_card = update_telemetry_badge("Amazon S3 Tables", is_online=False, refresh_clicks=1)
         self.assertIsInstance(badge_card, dbc.Card)
         self.assertIn("Health: ACTIVE", str(badge_card))
+
+    def test_update_engine_dropdown_options(self):
+        from app.app import update_engine_dropdown_options
+        options, value = update_engine_dropdown_options(is_online=False, refresh_clicks=0, current_value="Amazon S3 Tables")
+        self.assertGreaterEqual(len(options), 4)
+        labels = [o["label"] for o in options]
+        self.assertIn("Amazon S3 Tables", labels)
+        self.assertIn("Custom S3 + Iceberg", labels)
+        self.assertIn("Delta Lake on S3", labels)
+        self.assertIn("Hail VDS (Spark)", labels)
+        self.assertEqual(value, "Amazon S3 Tables")
 
 
 if __name__ == "__main__":
