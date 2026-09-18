@@ -177,15 +177,16 @@ class TestBackendMetadata(unittest.TestCase):
         df_s3, telemetry, sql = self.backend.get_raw_store_data("Amazon S3 Tables", offline=True)
         self.assertFalse(df_s3.empty)
         self.assertEqual(telemetry["mode"], "offline")
-        self.assertEqual(df_s3["engine"].iloc[0], "s3_tables")
+        self.assertEqual(df_s3["engine"].iloc[0], "mock_data")
+        self.assertIn("mock_data", telemetry["table"])
 
-        df_delta, _, _ = self.backend.get_raw_store_data("Delta Lake on S3", offline=True)
+        df_delta, tel_delta, _ = self.backend.get_raw_store_data("Delta Lake on S3", offline=True)
         self.assertFalse(df_delta.empty)
-        self.assertEqual(df_delta["engine"].iloc[0], "delta_lake")
+        self.assertEqual(df_delta["engine"].iloc[0], "mock_data")
 
         df_hail, _, _ = self.backend.get_raw_store_data("Hail VDS (Spark)", offline=True)
         self.assertFalse(df_hail.empty)
-        self.assertEqual(df_hail["engine"].iloc[0], "hail_vds")
+        self.assertEqual(df_hail["engine"].iloc[0], "mock_data")
 
     def test_engine_query_sql_generation_s3_tables(self):
         sql = self.backend.build_engine_sql("Amazon S3 Tables", query_kind="af")

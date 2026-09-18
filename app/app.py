@@ -718,8 +718,9 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
         dbc.CardHeader([
             html.I(className="bi bi-table me-2 text-primary"),
             html.Span(f"Raw Records: {telemetry['table']}", className="fw-bold me-2"),
+            dbc.Badge("OFFLINE MOCK DATA", color="warning", className="text-dark fw-bold me-2") if offline else dbc.Badge("LIVE AWS", color="success", className="me-2"),
             html.Small("(Supports in-table search, column sorting, and 1-click CSV export)", className="text-muted")
-        ], className="bg-white border-bottom py-2"),
+        ], className="bg-white border-bottom py-2 d-flex align-items-center flex-wrap"),
         dbc.CardBody([
             dash_table.DataTable(
                 data=df.to_dict("records"),
@@ -763,7 +764,7 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
             html.I(className="bi bi-laptop me-2 fs-5 align-middle text-warning"),
             html.Span([
                 html.Strong("Offline Demo Mode (Synthetic Mock Simulation): "),
-                f"Displaying local synthetic mock variant calls isolated for {engine}. Switch to 'Live AWS' in the navbar to query real AWS Cloud tables directly."
+                f"Displaying local synthetic mock records with engine stamped as 'mock_data' for simulation of {engine}. Switch to 'Live AWS Mode (Online)' in the top navbar to query live AWS Cloud tables."
             ], className="align-middle")
         ], color="warning", className="d-flex align-items-center mb-3 shadow-sm border-0")
         if offline else None

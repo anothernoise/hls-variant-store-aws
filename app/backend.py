@@ -625,15 +625,18 @@ class VariantStoreBackend:
                 where_clauses.append(f"sample_id = '{sample_id}'")
             
             clause_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            sql = f"SELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, engine, attributes FROM {db_name}.{var_table}{clause_str} ORDER BY start ASC LIMIT {limit};"
+            if is_offline:
+                sql = f"-- [OFFLINE DEMO MODE: Local Synthetic Mock Simulation]\nSELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, engine, attributes FROM mock_data.variants{clause_str} ORDER BY start ASC LIMIT {limit};"
+            else:
+                sql = f"SELECT sample_id, reference_name, start, end, reference_bases, alternate_bases, genotype, dp, gq, allele_depth, engine, attributes FROM {db_name}.{var_table}{clause_str} ORDER BY start ASC LIMIT {limit};"
             
             df = self.variants_df.copy() if not self.variants_df.empty else self._get_fallback_dataframe("carriers")
             if not df.empty:
                 engine_id = config.get("id", engine.lower().replace(" ", "_"))
                 if is_offline:
-                    # Explicit deterministic synthetic mock dataset for the chosen active engine
+                    # Explicit deterministic synthetic mock dataset for offline demonstration
                     df = df.copy()
-                    df["engine"] = engine_id
+                    df["engine"] = "mock_data"
                     df["cohort_id"] = "synthetic_mock_v1"
                 else:
                     if "engine" in df.columns:
@@ -658,12 +661,12 @@ class VariantStoreBackend:
             bytes_per_row = 0 if is_offline else tel_prof.get("scanned_bytes_per_row", 0 if "PostgreSQL" in engine else 128)
 
             telemetry = {
-                "engine": engine,
-                "table": f"{db_name}.{var_table}",
+                "engine": f"Mock Data ({engine})" if is_offline else engine,
+                "table": f"mock_data.variants (Offline Mock)" if is_offline else f"{db_name}.{var_table}",
                 "rows_retrieved": len(df),
                 "latency_ms": lat_ms,
                 "scanned_bytes": len(df) * bytes_per_row,
-                "query_type": "Direct Store Table Inspection",
+                "query_type": "Direct Store Table Inspection (Offline Mock)" if is_offline else "Direct Store Table Inspection",
                 "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
@@ -672,32 +675,38 @@ class VariantStoreBackend:
             if sample_id and sample_id != "All":
                 where_clauses.append(f"sample_id = '{sample_id}'")
             clause_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            sql = f"SELECT person_id, sample_id, gender_concept_id, year_of_birth, month_of_birth, day_of_birth, race_concept_id, ethnicity_concept_id FROM clinical_omop.person{clause_str} LIMIT {limit};"
+            if is_offline:
+                sql = f"-- [OFFLINE DEMO MODE: Local Synthetic Mock Simulation]\nSELECT person_id, sample_id, gender_concept_id, year_of_birth, month_of_birth, day_of_birth, race_concept_id, ethnicity_concept_id FROM mock_data.person{clause_str} LIMIT {limit};"
+            else:
+                sql = f"SELECT person_id, sample_id, gender_concept_id, year_of_birth, month_of_birth, day_of_birth, race_concept_id, ethnicity_concept_id FROM clinical_omop.person{clause_str} LIMIT {limit};"
             df = self.person_df.copy()
             if not df.empty and sample_id and sample_id != "All" and "sample_id" in df.columns:
                 df = df[df["sample_id"] == sample_id]
             df = df.head(limit)
             telemetry = {
-                "engine": engine,
-                "table": "clinical_omop.person",
+                "engine": f"Mock Data ({engine})" if is_offline else engine,
+                "table": "mock_data.person (Offline Mock)" if is_offline else "clinical_omop.person",
                 "rows_retrieved": len(df),
                 "latency_ms": 15.0 if is_offline else 25.0,
                 "scanned_bytes": 0 if is_offline else len(df) * 64,
-                "query_type": "Direct Store Table Inspection",
+                "query_type": "Direct Store Table Inspection (Offline Mock)" if is_offline else "Direct Store Table Inspection",
                 "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
 
         else:  # condition_occurrence
-            sql = f"SELECT condition_occurrence_id, person_id, condition_concept_id, condition_start_date, condition_type_concept_id FROM clinical_omop.condition_occurrence LIMIT {limit};"
+            if is_offline:
+                sql = f"-- [OFFLINE DEMO MODE: Local Synthetic Mock Simulation]\nSELECT condition_occurrence_id, person_id, condition_concept_id, condition_start_date, condition_type_concept_id FROM mock_data.condition_occurrence LIMIT {limit};"
+            else:
+                sql = f"SELECT condition_occurrence_id, person_id, condition_concept_id, condition_start_date, condition_type_concept_id FROM clinical_omop.condition_occurrence LIMIT {limit};"
             df = self.cond_df.copy().head(limit)
             telemetry = {
-                "engine": engine,
-                "table": "clinical_omop.condition_occurrence",
+                "engine": f"Mock Data ({engine})" if is_offline else engine,
+                "table": "mock_data.condition_occurrence (Offline Mock)" if is_offline else "clinical_omop.condition_occurrence",
                 "rows_retrieved": len(df),
                 "latency_ms": 14.0 if is_offline else 22.0,
                 "scanned_bytes": 0 if is_offline else len(df) * 48,
-                "query_type": "Direct Store Table Inspection",
+                "query_type": "Direct Store Table Inspection (Offline Mock)" if is_offline else "Direct Store Table Inspection",
                 "mode": "offline" if is_offline else "online"
             }
             return df, telemetry, sql
