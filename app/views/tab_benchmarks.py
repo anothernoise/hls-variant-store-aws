@@ -210,14 +210,22 @@ def build_benchmarks_body(data: Optional[Any] = None) -> html.Div:
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(figure=fig_scaling, config={"displayModeBar": False})
+                        dcc.Graph(
+                            id="bench-fig-scaling",
+                            figure=fig_scaling,
+                            config={"displayModeBar": False}
+                        )
                     ])
                 ], className="border-0 shadow-sm mb-4")
             ], lg=6, md=12),
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
-                        dcc.Graph(figure=fig_breakdown, config={"displayModeBar": False})
+                        dcc.Graph(
+                            id="bench-fig-breakdown",
+                            figure=fig_breakdown,
+                            config={"displayModeBar": False}
+                        )
                     ])
                 ], className="border-0 shadow-sm mb-4")
             ], lg=6, md=12),

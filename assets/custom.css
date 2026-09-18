@@ -41,8 +41,31 @@
     animation: pulse 1.8s infinite;
 }
 
+/* Stage-based Loading Label Styling */
+.main-loading-overlay {
+    position: relative;
+    min-height: 250px;
+}
+
+.main-loading-overlay ._dash-loading-callback::after {
+    content: "⚡ Stage: Executing Multi-Engine Locus & Burden Seeks -> Synthesizing AI Architectural Analysis...";
+    display: block;
+    margin-top: 18px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0d6efd;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 6px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    text-align: center;
+    letter-spacing: 0.2px;
+}
+
 @keyframes pulse {
     0% { opacity: 0.65; }
     50% { opacity: 1; }
     100% { opacity: 0.65; }
 }
+

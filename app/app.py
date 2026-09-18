@@ -62,6 +62,7 @@ content = html.Div([
         id="main-loading",
         type="circle",
         color="#0d6efd",
+        parent_className="main-loading-overlay",
         children=html.Div(id="tab-content", className="mb-4")
     )
 ])
