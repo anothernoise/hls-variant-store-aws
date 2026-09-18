@@ -172,6 +172,32 @@ class TestVariantStoreApiClient(unittest.TestCase):
         self.assertEqual(data["status"], "healthy")
         self.assertEqual(data["total_engines"], 7)
 
+    @patch("requests.Session.post")
+    def test_run_benchmarks_from_api(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "mode": "simulated",
+            "cohort_size": 100,
+            "engine_summary": [{"engine": "Amazon S3 Tables", "cost_per_query": "$0.000141"}],
+            "ai_analysis": {"recommendation": "Top performer: Amazon S3 Tables"}
+        }
+        mock_post.return_value = mock_resp
+
+        res = self.client.run_benchmarks(mode="simulated", cohort_size=100)
+        self.assertEqual(res["mode"], "simulated")
+        self.assertEqual(res["cohort_size"], 100)
+        self.assertIn("ai_analysis", res)
+
+    @patch("requests.Session.post")
+    def test_run_benchmarks_fallback_on_api_error(self, mock_post):
+        mock_post.side_effect = Exception("FastAPI unreachable")
+        res = self.client.run_benchmarks(mode="simulated", cohort_size=50)
+        self.assertEqual(res["mode"], "simulated")
+        self.assertEqual(res["cohort_size"], 50)
+        self.assertIn("engine_summary", res)
+        self.assertIn("ai_analysis", res)
+
 
 if __name__ == "__main__":
     unittest.main()

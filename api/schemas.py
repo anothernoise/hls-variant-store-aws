@@ -49,6 +49,22 @@ class BenchmarkItem(BaseModel):
     cost_per_query: str = Field(description="Estimated dollar cost per query execution")
 
 
+class BenchmarkRunRequest(BaseModel):
+    mode: str = Field(default="simulated", pattern="^(simulated|live)$", description="Execution mode: 'simulated' or 'live'")
+    cohort_size: int = Field(default=100, ge=1, le=2500, description="Cohort size to benchmark (1-2500)")
+    engines: Optional[List[str]] = Field(default=None, description="Optional target engines subset")
+
+
+class BenchmarkRunResponse(BaseModel):
+    mode: str = Field(description="Execution mode ('live' or 'simulated')")
+    cohort_size: int = Field(description="Target cohort size")
+    execution_duration_ms: float = Field(description="Total benchmark run duration in milliseconds")
+    engine_summary: List[BenchmarkItem] = Field(default_factory=list, description="Per-engine aggregated latency & cost items")
+    query_benchmarks: List[Dict[str, Any]] = Field(default_factory=list, description="Granular query scenario results")
+    n1_benchmarks: Dict[str, Any] = Field(default_factory=dict, description="N+1 ingestion append metrics")
+    ai_analysis: Dict[str, Any] = Field(default_factory=dict, description="AI architectural reasoning and performance recommendation")
+
+
 class VariantRecordInput(BaseModel):
     reference_name: str = Field(description="Chromosome / contig name (e.g. chr17)")
     start: int = Field(description="1-based start genomic position")

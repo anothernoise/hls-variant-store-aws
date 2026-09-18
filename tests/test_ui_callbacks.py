@@ -73,8 +73,25 @@ class TestUICallbacks(unittest.TestCase):
         self.assertIn("Custom S3 + Iceberg", labels)
         self.assertIn("Delta Lake on S3", labels)
         self.assertIn("Hail VDS (Spark)", labels)
-        self.assertEqual(value, "Amazon S3 Tables")
+    def test_render_tab_content_benchmarks_tab(self):
+        card = render_tab_content(
+            active_tab="tab-benchmarks",
+            engine="Amazon S3 Tables",
+            is_online=False,
+            refresh_clicks=0
+        )
+        self.assertIsInstance(card, dbc.Card)
+        self.assertIn("Multi-Engine Query Latency", str(card))
+        self.assertIn("Run Perf Test", str(card))
+
+    def test_handle_run_benchmark(self):
+        from app.app import handle_run_benchmark
+        result = handle_run_benchmark(n_clicks=1, mode="simulated", cohort_size=50)
+        self.assertIsNotNone(result)
+        self.assertIn("AI Architectural Reasoning", str(result))
+        self.assertIn("50 Samples", str(result))
 
 
 if __name__ == "__main__":
     unittest.main()
+

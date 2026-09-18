@@ -33,6 +33,7 @@ from views import (
     render_burden_tab,
     render_omop_tab,
     render_benchmarks_tab,
+    build_benchmarks_body,
     render_raw_tab_shell,
     render_raw_explorer_body,
     render_health_tab
@@ -348,5 +349,28 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
     )
 
 
+# -----------------------------------------------------------------------------
+# Callback: Run Performance Benchmark & Update Results
+# -----------------------------------------------------------------------------
+@callback(
+    Output("benchmarks-results-container", "children"),
+    [Input("run-benchmark-btn", "n_clicks")],
+    [State("bench-mode-select", "value"),
+     State("bench-cohort-select", "value")],
+    prevent_initial_call=True
+)
+def handle_run_benchmark(n_clicks: int, mode: str, cohort_size: int):
+    if not n_clicks:
+        from dash.exceptions import PreventUpdate
+        raise PreventUpdate
+
+    res = api_client.run_benchmarks(
+        mode=mode or "simulated",
+        cohort_size=int(cohort_size or 100)
+    )
+    return build_benchmarks_body(res)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8050, debug=False)
+
