@@ -12,6 +12,7 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+from datetime import datetime, timezone
 
 # Ensure app package can import backend
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -62,6 +63,16 @@ navbar = dbc.Navbar(
                 ),
                 html.Span(id="mode-status-badge", className="align-middle")
             ], className="d-flex align-items-center bg-light px-3 py-1 rounded border shadow-sm me-3"),
+            html.Div([
+                dbc.Button(
+                    [html.I(className="bi bi-arrow-clockwise me-1"), "Refresh Data"],
+                    id="global-refresh-btn",
+                    color="primary",
+                    size="sm",
+                    className="fw-semibold shadow-sm me-2"
+                ),
+                html.Span(id="last-refresh-timestamp", className="align-middle text-muted small")
+            ], className="d-flex align-items-center bg-white px-2 py-1 rounded border shadow-sm me-3"),
             dbc.Badge("AWS HLS Solution Bootcamp", color="primary", className="p-2 fs-7 me-2 shadow-sm"),
             dbc.Badge("OMOP CDM v5.4 & Lakehouse", color="secondary", className="p-2 fs-7 shadow-sm")
         ], className="ms-auto d-flex align-items-center flex-wrap")
@@ -155,7 +166,12 @@ content = html.Div([
         dbc.Tab(label="🔍 6. Store Data Explorer", tab_id="tab-raw"),
         dbc.Tab(label="🩺 7. Engine Health & Status", tab_id="tab-health"),
     ], id="tabs-main", active_tab="tab-af", className="mb-3 nav-fill border-bottom"),
-    html.Div(id="tab-content", className="mb-4")
+    dcc.Loading(
+        id="main-loading",
+        type="circle",
+        color="#0d6efd",
+        children=html.Div(id="tab-content", className="mb-4")
+    )
 ])
 
 # -----------------------------------------------------------------------------
@@ -212,14 +228,35 @@ def update_mode_status_badge(is_online):
 
 
 # -----------------------------------------------------------------------------
+# Callback: Update Refresh Timestamp
+# -----------------------------------------------------------------------------
+@callback(
+    Output("last-refresh-timestamp", "children"),
+    Input("global-refresh-btn", "n_clicks")
+)
+def update_refresh_timestamp(n_clicks):
+    now_str = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+    if not n_clicks:
+        return html.Span([
+            html.I(className="bi bi-clock-history me-1 text-muted"),
+            html.Span(f"Initial Load ({now_str})")
+        ])
+    return html.Span([
+        html.I(className="bi bi-check2-circle me-1 text-success"),
+        html.Span(f"Refreshed: {now_str} (x{n_clicks})")
+    ])
+
+
+# -----------------------------------------------------------------------------
 # Callback: Update Telemetry Badge
 # -----------------------------------------------------------------------------
 @callback(
     Output("telemetry-badge-container", "children"),
     [Input("engine-dropdown", "value"),
-     Input("online-offline-switch", "value")]
+     Input("online-offline-switch", "value"),
+     Input("global-refresh-btn", "n_clicks")]
 )
-def update_telemetry_badge(engine, is_online):
+def update_telemetry_badge(engine, is_online, refresh_clicks=0):
     health = api_client.get_engine_health(engine, offline=not is_online)
     h_status = health.get("status", "pass")
     h_dep = health.get("deployment_status", "ACTIVE")
@@ -291,9 +328,10 @@ def update_telemetry_badge(engine, is_online):
     Output("tab-content", "children"),
     [Input("tabs-main", "active_tab"),
      Input("engine-dropdown", "value"),
-     Input("online-offline-switch", "value")]
+     Input("online-offline-switch", "value"),
+     Input("global-refresh-btn", "n_clicks")]
 )
-def render_tab_content(active_tab, engine, is_online):
+def render_tab_content(active_tab, engine, is_online, refresh_clicks=0):
     offline = not is_online
     mode_badge = (
         dbc.Badge([html.I(className="bi bi-cloud-check-fill me-1"), "Live AWS"], color="success", className="ms-2")
@@ -748,9 +786,10 @@ def render_tab_content(active_tab, engine, is_online):
      Input("raw-table-select", "value"),
      Input("raw-chrom-select", "value"),
      Input("raw-sample-select", "value"),
-     Input("online-offline-switch", "value")]
+     Input("online-offline-switch", "value"),
+     Input("global-refresh-btn", "n_clicks")]
 )
-def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_online):
+def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_online, refresh_clicks=0):
     offline = not is_online
     meta = backend.get_store_metadata(engine)
     df, telemetry, sql = api_client.get_raw_store_data(
