@@ -31,3 +31,18 @@
 .Select-control, .Select-menu-outer {
     font-size: 0.85rem;
 }
+
+/* Benchmark Progress Status */
+.benchmarks-custom-spinner {
+    min-height: 220px;
+}
+
+.benchmarks-loading-status {
+    animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.65; }
+    50% { opacity: 1; }
+    100% { opacity: 0.65; }
+}

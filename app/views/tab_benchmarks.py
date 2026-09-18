@@ -301,7 +301,8 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
                         dbc.Button([
                             html.I(className="bi bi-play-fill me-1"),
                             "Run Perf Test"
-                        ], id="run-benchmark-btn", color="primary", size="sm", className="fw-bold px-3 text-nowrap")
+                        ], id="run-benchmark-btn", color="primary", size="sm", className="fw-bold px-3 text-nowrap"),
+                        html.Div(id="bench-status-badge", className="ms-1")
                     ], className="d-flex align-items-center justify-content-lg-end justify-content-start flex-wrap gap-2")
                 ], lg=7, md=12)
             ], className="align-items-center")
@@ -309,7 +310,9 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
         dbc.CardBody([
             dcc.Loading(
                 id="benchmarks-loading",
-                type="default",
+                type="circle",
+                color="#0d6efd",
+                className="benchmarks-custom-spinner",
                 children=html.Div(
                     id="benchmarks-results-container",
                     children=build_benchmarks_body(bench_data)

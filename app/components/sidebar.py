@@ -60,24 +60,30 @@ def create_sidebar(supported_engines: List[str]) -> html.Div:
                 html.Span("Cohort & Dataset Context", className="fw-bold")
             ], className="bg-light py-2"),
             dbc.CardBody([
-                dbc.ListGroup([
-                    dbc.ListGroupItem([
-                        html.Small("Reference Coordinate:", className="text-muted d-block"),
-                        html.Span("GRCh38 / hg38", className="fw-bold text-dark")
-                    ], className="border-0 px-0 py-1"),
-                    dbc.ListGroupItem([
-                        html.Small("Cohort Size:", className="text-muted d-block"),
-                        html.Span("10 WGS Samples (Additive Batches)", className="fw-bold text-dark")
-                    ], className="border-0 px-0 py-1"),
-                    dbc.ListGroupItem([
-                        html.Small("Target Clinical Loci:", className="text-muted d-block"),
-                        html.Span("APP (rs63750066), SOD1, BRCA1", className="fw-bold text-dark")
-                    ], className="border-0 px-0 py-1"),
-                    dbc.ListGroupItem([
-                        html.Small("Phenotype Model:", className="text-muted d-block"),
-                        html.Span("OMOP CDM v5.4 (Person, Condition)", className="fw-bold text-dark")
-                    ], className="border-0 px-0 py-1"),
-                ], flush=True)
+                html.Div(id="cohort-context-container", children=[
+                    dbc.ListGroup([
+                        dbc.ListGroupItem([
+                            html.Small("Dataset Origin:", className="text-muted d-block"),
+                            html.Span("Synthetic Mock (Local)", className="fw-bold text-dark")
+                        ], className="border-0 px-0 py-1"),
+                        dbc.ListGroupItem([
+                            html.Small("Reference Coordinate:", className="text-muted d-block"),
+                            html.Span("GRCh38 / hg38", className="fw-bold text-dark")
+                        ], className="border-0 px-0 py-1"),
+                        dbc.ListGroupItem([
+                            html.Small("Cohort Size:", className="text-muted d-block"),
+                            html.Span("10 WGS Samples (Additive)", className="fw-bold text-dark")
+                        ], className="border-0 px-0 py-1"),
+                        dbc.ListGroupItem([
+                            html.Small("Target Clinical Loci:", className="text-muted d-block"),
+                            html.Span("APP (rs63750066), SOD1, BRCA1", className="fw-bold text-dark")
+                        ], className="border-0 px-0 py-1"),
+                        dbc.ListGroupItem([
+                            html.Small("Active Schema:", className="text-muted d-block"),
+                            html.Span("variants (Genomic Calls)", className="fw-bold text-dark")
+                        ], className="border-0 px-0 py-1"),
+                    ], flush=True)
+                ])
             ])
         ], className="shadow-sm mb-3 border-0"),
 

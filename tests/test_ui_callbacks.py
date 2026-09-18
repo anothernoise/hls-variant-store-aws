@@ -86,18 +86,49 @@ class TestUICallbacks(unittest.TestCase):
 
     def test_handle_run_benchmark(self):
         from app.app import handle_run_benchmark
-        result = handle_run_benchmark(n_clicks=1, cohort_size=50, mode="simulated")
+        result, status_badge = handle_run_benchmark(n_clicks=1, cohort_size=50, mode="simulated")
         self.assertIsNotNone(result)
         self.assertIn("AI Architectural Reasoning", str(result))
         self.assertIn("50 Samples", str(result))
+        self.assertIn("50 samples", str(status_badge))
 
     def test_handle_run_benchmark_reactive_cohort_change(self):
         from app.app import handle_run_benchmark
         # Changing cohort dropdown without clicking button
-        result = handle_run_benchmark(n_clicks=None, cohort_size=250, mode="simulated")
+        result, status_badge = handle_run_benchmark(n_clicks=None, cohort_size=250, mode="simulated")
         self.assertIsNotNone(result)
         self.assertIn("250 Samples", str(result))
         self.assertIn("Scaling Trajectory", str(result))
+        self.assertIn("250 samples", str(status_badge))
+
+    def test_update_cohort_dataset_context_offline(self):
+        from app.app import update_cohort_dataset_context
+        context_list = update_cohort_dataset_context(
+            engine="Amazon S3 Tables",
+            is_online=False,
+            active_tab="tab-af",
+            refresh_clicks=0
+        )
+        self.assertIsInstance(context_list, dbc.ListGroup)
+        context_str = str(context_list)
+        self.assertIn("Synthetic Simulation (Local Air-gap)", context_str)
+        self.assertIn("Amazon S3 Tables (Mock Simulation)", context_str)
+        self.assertIn("Allele Frequency", context_str)
+
+    def test_update_cohort_dataset_context_online_and_tabs(self):
+        from app.app import update_cohort_dataset_context
+        # Tab OMOP online
+        context_list = update_cohort_dataset_context(
+            engine="Delta Lake on S3",
+            is_online=True,
+            active_tab="tab-omop",
+            refresh_clicks=1
+        )
+        context_str = str(context_list)
+        self.assertIn("Live AWS Lakehouse (us-east-1)", context_str)
+        self.assertIn("Delta Lake on S3 (Cloud)", context_str)
+        self.assertIn("OMOP CDM v5.4", context_str)
+        self.assertIn("4 Federated Patients", context_str)
 
 
 

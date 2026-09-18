@@ -215,6 +215,76 @@ def update_telemetry_badge(engine: str, is_online: bool, refresh_clicks: int = 0
 
 
 # -----------------------------------------------------------------------------
+# Callback: Update Cohort & Dataset Context in Left Sidebar
+# -----------------------------------------------------------------------------
+@callback(
+    Output("cohort-context-container", "children"),
+    [Input("engine-dropdown", "value"),
+     Input("online-offline-switch", "value"),
+     Input("tabs-main", "active_tab"),
+     Input("global-refresh-btn", "n_clicks")]
+)
+def update_cohort_dataset_context(engine: str, is_online: bool, active_tab: str, refresh_clicks: int = 0):
+    tab_contexts = {
+        "tab-af": ("variants (Allele Freq)", "10 WGS Samples (Additive)", "APP, SOD1, BRCA1", "Allele Frequency"),
+        "tab-carriers": ("variants (Genotypes)", "10 WGS Samples (Additive)", "APP (rs63750066)", "Carrier Discovery"),
+        "tab-burden": ("variants (Aggregated)", "10 WGS Samples (Additive)", "APP (chr21:25891796)", "Gene Burden"),
+        "tab-omop": ("variants ⨝ person ⨝ cond", "4 Federated Patients", "APP Missense ↔ Alzheimer's", "OMOP CDM v5.4"),
+        "tab-benchmarks": ("lakehouse_benchmarks", "10 to 2,500 Samples", "Multi-Locus Cross-Engine", "Latency & Cost Matrix"),
+        "tab-raw": ("store_explorer", "Direct Table Seek", "Contig / Sample Partition", "Raw Lakehouse Store"),
+        "tab-health": ("health_telemetry", "Cluster Diagnostics", "All 4 Lakehouse Tiers", "Engine Diagnostic Probe"),
+    }
+    schema_label, cohort_str, loci_str, model_str = tab_contexts.get(
+        active_tab,
+        ("variants", "10 WGS Samples", "APP, SOD1, BRCA1", "OMOP CDM v5.4")
+    )
+
+    if is_online:
+        origin_badge = html.Span([
+            html.I(className="bi bi-cloud-check-fill me-1 text-success"),
+            html.Span("Live AWS Lakehouse (us-east-1)", className="fw-bold text-success")
+        ])
+        engine_str = f"{engine} (Cloud)"
+    else:
+        origin_badge = html.Span([
+            html.I(className="bi bi-laptop me-1 text-warning"),
+            html.Span("Synthetic Simulation (Local Air-gap)", className="fw-bold text-dark")
+        ])
+        engine_str = f"{engine} (Mock Simulation)"
+
+    return dbc.ListGroup([
+        dbc.ListGroupItem([
+            html.Small("Dataset Origin:", className="text-muted d-block"),
+            origin_badge
+        ], className="border-0 px-0 py-1"),
+        dbc.ListGroupItem([
+            html.Small("Storage Architecture:", className="text-muted d-block"),
+            html.Span(engine_str, className="fw-bold text-dark")
+        ], className="border-0 px-0 py-1"),
+        dbc.ListGroupItem([
+            html.Small("Active View Context:", className="text-muted d-block"),
+            html.Span(model_str, className="fw-bold text-primary")
+        ], className="border-0 px-0 py-1"),
+        dbc.ListGroupItem([
+            html.Small("Reference Coordinate:", className="text-muted d-block"),
+            html.Span("GRCh38 / hg38", className="fw-bold text-dark")
+        ], className="border-0 px-0 py-1"),
+        dbc.ListGroupItem([
+            html.Small("Evaluated Cohort:", className="text-muted d-block"),
+            html.Span(cohort_str, className="fw-bold text-dark")
+        ], className="border-0 px-0 py-1"),
+        dbc.ListGroupItem([
+            html.Small("Target Clinical Loci:", className="text-muted d-block"),
+            html.Span(loci_str, className="fw-bold text-dark")
+        ], className="border-0 px-0 py-1"),
+        dbc.ListGroupItem([
+            html.Small("Active Schema/Table:", className="text-muted d-block"),
+            html.Span(schema_label, className="badge bg-light text-dark border")
+        ], className="border-0 px-0 py-1"),
+    ], flush=True)
+
+
+# -----------------------------------------------------------------------------
 # Callback: Dynamically Filter Engine Dropdown by Health API Availability
 # -----------------------------------------------------------------------------
 @callback(
@@ -346,7 +416,8 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
 # Callback: Run Performance Benchmark & Update Results (Reactive on Dropdowns & Button)
 # -----------------------------------------------------------------------------
 @callback(
-    Output("benchmarks-results-container", "children"),
+    [Output("benchmarks-results-container", "children"),
+     Output("bench-status-badge", "children")],
     [Input("run-benchmark-btn", "n_clicks"),
      Input("bench-cohort-select", "value"),
      Input("bench-mode-select", "value")],
@@ -359,7 +430,12 @@ def handle_run_benchmark(n_clicks: Optional[int], cohort_size: Optional[int], mo
         mode=target_mode,
         cohort_size=target_cohort
     )
-    return build_benchmarks_body(res)
+    exec_dur = res.get("execution_duration_ms", 0.0)
+    status_badge = dbc.Badge([
+        html.I(className="bi bi-check2-circle me-1 text-success"),
+        f"Executed in {exec_dur:.1f}ms ({target_cohort} samples • {target_mode})"
+    ], color="light", className="text-dark border p-2 small shadow-sm")
+    return build_benchmarks_body(res), status_badge
 
 
 
