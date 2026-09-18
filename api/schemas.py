@@ -28,6 +28,8 @@ class QueryTelemetry(BaseModel):
     scanned_bytes: int = Field(default=0, description="Data scanned in bytes")
     query_type: str = Field(default="Query Execution", description="Analytical query category")
     mode: str = Field(description="'online' (live AWS Athena/Data API) or 'offline' (simulation)")
+    table: Optional[str] = Field(default=None, description="Actual table or view inspected")
+    rows_retrieved: Optional[int] = Field(default=0, description="Total number of rows returned")
     target_database: Optional[str] = Field(default=None, description="Actual database queried")
     status: Optional[str] = Field(default=None, description="Engine status flag")
     error: Optional[str] = Field(default=None, description="Error message if execution failed")

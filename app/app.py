@@ -687,15 +687,20 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
         ], className="py-2")
     ], className="mb-3 border")
 
+    rows_count = telemetry.get("rows_retrieved", len(df))
+    latency = telemetry.get("latency_ms", 0.0)
+    scanned = telemetry.get("scanned_bytes", 0)
+    table_label = telemetry.get("table", table_name or "variants")
+
     # 2. Executed Direct SQL Query Card
     sql_card = dbc.Card([
         dbc.CardHeader([
             html.I(className="bi bi-terminal me-2 text-dark"),
             html.Span("Direct Engine SQL Execution Preview", className="fw-bold me-2"),
             mode_badge,
-            dbc.Badge(f"Rows: {telemetry['rows_retrieved']}", color="success", className="me-2 ms-2"),
-            dbc.Badge(f"Engine Latency: {telemetry['latency_ms']} ms", color="info", className="me-2"),
-            dbc.Badge(f"Scanned: {telemetry['scanned_bytes']} bytes", color="secondary")
+            dbc.Badge(f"Rows: {rows_count}", color="success", className="me-2 ms-2"),
+            dbc.Badge(f"Engine Latency: {latency} ms", color="info", className="me-2"),
+            dbc.Badge(f"Scanned: {scanned} bytes", color="secondary")
         ], className="bg-light py-2 d-flex align-items-center flex-wrap"),
         dbc.CardBody([
             html.Pre(
@@ -717,7 +722,7 @@ def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_onlin
     table_card = dbc.Card([
         dbc.CardHeader([
             html.I(className="bi bi-table me-2 text-primary"),
-            html.Span(f"Raw Records: {telemetry['table']}", className="fw-bold me-2"),
+            html.Span(f"Raw Records: {table_label}", className="fw-bold me-2"),
             dbc.Badge("OFFLINE MOCK DATA", color="warning", className="text-dark fw-bold me-2") if offline else dbc.Badge("LIVE AWS", color="success", className="me-2"),
             html.Small("(Supports in-table search, column sorting, and 1-click CSV export)", className="text-muted")
         ], className="bg-white border-bottom py-2 d-flex align-items-center flex-wrap"),
