@@ -47,9 +47,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "athena_results" {
 
 # Dedicated Athena WorkGroup for Genomic Analytics
 resource "aws_athena_workgroup" "genomics" {
-  name        = "${var.project_name}-${var.environment}"
-  description = "Athena workgroup for querying S3 Tables genomic variants and OMOP phenotype data"
-  state       = "ENABLED"
+  name          = "${var.project_name}-${var.environment}"
+  description   = "Athena workgroup for querying S3 Tables genomic variants and OMOP phenotype data"
+  state         = "ENABLED"
+  force_destroy = true
 
   configuration {
     enforce_workgroup_configuration    = true
