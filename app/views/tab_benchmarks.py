@@ -308,15 +308,9 @@ def render_benchmarks_tab(bench_data: Optional[Any] = None) -> dbc.Card:
             ], className="align-items-center")
         ], className="bg-white border-bottom py-3"),
         dbc.CardBody([
-            dcc.Loading(
-                id="benchmarks-loading",
-                type="circle",
-                color="#0d6efd",
-                className="benchmarks-custom-spinner",
-                children=html.Div(
-                    id="benchmarks-results-container",
-                    children=build_benchmarks_body(bench_data)
-                )
+            html.Div(
+                id="benchmarks-results-container",
+                children=build_benchmarks_body(bench_data)
             )
         ], className="p-4")
     ], className="shadow-sm border-0")
