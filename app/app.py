@@ -311,6 +311,28 @@ def render_tab_content(active_tab, engine, is_online):
                 html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
             ], color="warning", className="shadow-sm border-0")
 
+        if not df.empty:
+            if "engine" not in df.columns:
+                config = backend.get_engine_config(engine)
+                engine_id = config.get("id", engine.lower().replace(" ", "_"))
+                df["engine"] = "mock_data" if offline else engine_id
+            # Guarantee engine is the first column
+            cols = ["engine"] + [c for c in df.columns if c != "engine"]
+            df = df[cols]
+
+        col_display = {
+            "engine": "⚙️ Storage Engine",
+            "gene_symbol": "🧬 Gene",
+            "reference_name": "Contig",
+            "start": "Pos (Start)",
+            "reference_bases": "Ref",
+            "alternate_bases": "Alt",
+            "carrier_frequency": "Carrier Freq",
+            "total_cohort_samples": "Cohort N",
+            "alt_carrier_count": "Alt Carriers",
+            "clinical_significance": "Significance"
+        }
+
         hover_cols = [c for c in ["clinical_significance", "engine"] if c in df.columns]
         fig = px.bar(
             df,
@@ -335,17 +357,27 @@ def render_tab_content(active_tab, engine, is_online):
                 dcc.Graph(figure=fig, className="mb-4"),
                 html.H6("Tabular Variant Frequency Records", className="fw-bold text-muted mb-2"),
                 dash_table.DataTable(
+                    id=f"af-table-{engine.lower().replace(' ', '_')}",
                     data=df.to_dict("records"),
-                    columns=[{"name": c, "id": c} for c in df.columns],
+                    columns=[{"name": col_display.get(c, c), "id": c} for c in df.columns],
                     page_size=6,
-                    style_table={"overflowX": "auto"},
+                    style_table={"overflowX": "auto", "minWidth": "100%"},
                     style_header={"backgroundColor": "#f8f9fa", "fontWeight": "bold", "color": "#495057"},
-                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
+                    style_header_conditional=[
+                        {
+                            "if": {"column_id": "engine"},
+                            "backgroundColor": "#e7f1ff",
+                            "color": "#0d6efd",
+                            "fontWeight": "bold"
+                        }
+                    ],
+                    style_cell={"textAlign": "left", "padding": "12px 10px", "fontSize": "13px"},
                     style_data_conditional=[
                         {
                             "if": {"column_id": "engine"},
                             "fontFamily": "monospace",
                             "fontWeight": "bold",
+                            "backgroundColor": "#f8faff",
                             "color": "#0d6efd"
                         },
                         {
@@ -368,6 +400,14 @@ def render_tab_content(active_tab, engine, is_online):
                 html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
             ], color="warning", className="shadow-sm border-0")
 
+        if not df.empty:
+            if "engine" not in df.columns:
+                config = backend.get_engine_config(engine)
+                engine_id = config.get("id", engine.lower().replace(" ", "_"))
+                df["engine"] = "mock_data" if offline else engine_id
+            cols = ["engine"] + [c for c in df.columns if c != "engine"]
+            df = df[cols]
+
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Pathogenic Mutation Carrier Discovery (APP rs63750066)", className="fw-bold text-danger me-2"),
@@ -381,12 +421,21 @@ def render_tab_content(active_tab, engine, is_online):
                     dbc.Badge(engine, color="primary")
                 ], className="text-muted small mb-3"),
                 dash_table.DataTable(
+                    id=f"carriers-table-{engine.lower().replace(' ', '_')}",
                     data=df.to_dict("records"),
                     columns=[{"name": c, "id": c} for c in df.columns],
                     page_size=6,
                     style_table={"overflowX": "auto"},
                     style_header={"backgroundColor": "#fce8e6", "color": "#c5221f", "fontWeight": "bold"},
-                    style_cell={"textAlign": "left", "padding": "12px", "fontSize": "13px"}
+                    style_cell={"textAlign": "left", "padding": "12px", "fontSize": "13px"},
+                    style_data_conditional=[
+                        {
+                            "if": {"column_id": "engine"},
+                            "fontFamily": "monospace",
+                            "fontWeight": "bold",
+                            "color": "#0d6efd"
+                        }
+                    ]
                 )
             ])
         ], className="shadow-sm border-0")
@@ -400,6 +449,14 @@ def render_tab_content(active_tab, engine, is_online):
                 html.Hr(),
                 html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
             ], color="warning", className="shadow-sm border-0")
+
+        if not df.empty:
+            if "engine" not in df.columns:
+                config = backend.get_engine_config(engine)
+                engine_id = config.get("id", engine.lower().replace(" ", "_"))
+                df["engine"] = "mock_data" if offline else engine_id
+            cols = ["engine"] + [c for c in df.columns if c != "engine"]
+            df = df[cols]
 
         fig = px.bar(
             df,
@@ -420,12 +477,21 @@ def render_tab_content(active_tab, engine, is_online):
             dbc.CardBody([
                 dcc.Graph(figure=fig, className="mb-4"),
                 dash_table.DataTable(
+                    id=f"burden-table-{engine.lower().replace(' ', '_')}",
                     data=df.to_dict("records"),
                     columns=[{"name": c, "id": c} for c in df.columns],
                     page_size=6,
                     style_table={"overflowX": "auto"},
                     style_header={"backgroundColor": "#f8f9fa", "fontWeight": "bold"},
-                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"}
+                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
+                    style_data_conditional=[
+                        {
+                            "if": {"column_id": "engine"},
+                            "fontFamily": "monospace",
+                            "fontWeight": "bold",
+                            "color": "#0d6efd"
+                        }
+                    ]
                 )
             ])
         ], className="shadow-sm border-0")
@@ -440,6 +506,14 @@ def render_tab_content(active_tab, engine, is_online):
                 html.Small("Switch to 'Offline Demo Mode' in the navbar to test this engine with synthetic simulation.")
             ], color="warning", className="shadow-sm border-0")
 
+        if not df.empty:
+            if "engine" not in df.columns:
+                config = backend.get_engine_config(engine)
+                engine_id = config.get("id", engine.lower().replace(" ", "_"))
+                df["engine"] = "mock_data" if offline else engine_id
+            cols = ["engine"] + [c for c in df.columns if c != "engine"]
+            df = df[cols]
+
         return dbc.Card([
             dbc.CardHeader([
                 html.Span("Multimodal Genotype ↔ OMOP CDM Phenotype Federation", className="fw-bold text-success me-2"),
@@ -449,12 +523,21 @@ def render_tab_content(active_tab, engine, is_online):
             dbc.CardBody([
                 html.P("In-place federated join between genomic variant calls and OMOP clinical person/condition tables:", className="text-muted small mb-3"),
                 dash_table.DataTable(
+                    id=f"omop-table-{engine.lower().replace(' ', '_')}",
                     data=df.to_dict("records"),
                     columns=[{"name": c, "id": c} for c in df.columns],
                     page_size=6,
                     style_table={"overflowX": "auto"},
                     style_header={"backgroundColor": "#e6f4ea", "color": "#137333", "fontWeight": "bold"},
-                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"}
+                    style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
+                    style_data_conditional=[
+                        {
+                            "if": {"column_id": "engine"},
+                            "fontFamily": "monospace",
+                            "fontWeight": "bold",
+                            "color": "#0d6efd"
+                        }
+                    ]
                 )
             ])
         ], className="shadow-sm border-0")
