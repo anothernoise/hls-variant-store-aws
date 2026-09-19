@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +32,9 @@ ATHENA_PRICE_PER_TB = 5.00  # $5.00 per TB scanned
 BYTES_IN_TB = 1024 ** 4
 BYTES_IN_MB = 1024 ** 2
 MIN_BILLABLE_BYTES = 10 * BYTES_IN_MB  # Athena 10MB minimum per query
+
+DEFAULT_WORKGROUP = os.environ.get("ATHENA_WORKGROUP", "hls-variant-store-dev")
+DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1"))
 
 LAKEHOUSE_STRATEGIES = [
     "Amazon S3 Tables",
@@ -158,23 +161,25 @@ def run_live_athena_query(
     query_type: str,
     sql: str,
     database: str,
-    workgroup: str = "hls-variant-store-dev",
-    region: str = "us-east-1",
+    workgroup: Optional[str] = None,
+    region: Optional[str] = None,
     profile: str = "default",
     cohort_size: int = 10
 ) -> Dict[str, Any]:
     """
-    Executes a real SQL query via AWS Athena in us-east-1 and extracts exact metrics:
+    Executes a real SQL query via AWS Athena and extracts exact metrics:
     - EngineExecutionTimeInMillis
     - DataScannedInBytes
     """
+    target_workgroup = workgroup or DEFAULT_WORKGROUP
+    target_region = region or DEFAULT_REGION
     canonical_strategy = normalize_strategy_name(strategy)
     cmd = [
         "aws", "athena", "start-query-execution",
         "--query-string", sql,
-        "--work-group", workgroup,
+        "--work-group", target_workgroup,
         "--query-execution-context", f"Database={database}",
-        "--region", region,
+        "--region", target_region,
         "--output", "json"
     ]
     if profile:
@@ -375,23 +380,25 @@ _CATALOG_AVAILABILITY_CACHE: Dict[str, bool] = {}
 
 def probe_athena_database_availability(
     database: str,
-    workgroup: str = "hls-variant-store-dev",
-    region: str = "us-east-1",
+    workgroup: Optional[str] = None,
+    region: Optional[str] = None,
     profile: str = "default"
 ) -> bool:
     """
     Rapidly checks if an Athena database and table catalog exists and is accessible.
     Caches the result so unprovisioned cloud tables don't incur redundant timeouts.
     """
+    target_workgroup = workgroup or DEFAULT_WORKGROUP
+    target_region = region or DEFAULT_REGION
     if database in _CATALOG_AVAILABILITY_CACHE:
         return _CATALOG_AVAILABILITY_CACHE[database]
 
     cmd = [
         "aws", "athena", "start-query-execution",
         "--query-string", "SHOW TABLES",
-        "--work-group", workgroup,
+        "--work-group", target_workgroup,
         "--query-execution-context", f"Database={database}",
-        "--region", region,
+        "--region", target_region,
         "--output", "json"
     ]
     if profile:
@@ -409,7 +416,7 @@ def probe_athena_database_availability(
         poll_cmd = [
             "aws", "athena", "get-query-execution",
             "--query-execution-id", qid,
-            "--region", region,
+            "--region", target_region,
             "--output", "json"
         ]
         if profile:
@@ -436,11 +443,13 @@ def run_benchmark_suite(
     mode: str = "simulated",
     cohort_size: int = 10,
     strategies: Optional[List[str]] = None,
-    workgroup: str = "hls-variant-store-dev",
+    workgroup: Optional[str] = None,
     profile: str = "default",
-    region: str = "us-east-1"
+    region: Optional[str] = None
 ) -> Dict[str, Any]:
     """Runs the full benchmark suite in either simulated or live Athena mode with parallel execution."""
+    target_workgroup = workgroup or DEFAULT_WORKGROUP
+    target_region = region or DEFAULT_REGION
     target_strategies = strategies or LAKEHOUSE_STRATEGIES
     queries = ["allele_frequency", "carrier_lookup", "gene_burden", "omop_join"]
 
@@ -448,7 +457,7 @@ def run_benchmark_suite(
     if mode == "live":
         unique_dbs = {ENGINE_DATABASE_MAP.get(s, "genomics_custom_iceberg") for s in target_strategies}
         for db in unique_dbs:
-            probe_athena_database_availability(db, workgroup=workgroup, region=region, profile=profile)
+            probe_athena_database_availability(db, workgroup=target_workgroup, region=target_region, profile=profile)
 
     tasks = []
     for q in queries:
@@ -459,11 +468,11 @@ def run_benchmark_suite(
         if mode == "live":
             db = ENGINE_DATABASE_MAP.get(strat, "genomics_custom_iceberg")
             # Pre-flight check: if database is not available, fast fail to simulation instantly
-            if not probe_athena_database_availability(db, workgroup=workgroup, region=region, profile=profile):
+            if not probe_athena_database_availability(db, workgroup=target_workgroup, region=target_region, profile=profile):
                 sim = simulate_query_metrics(strat, query_t, cohort_size)
                 sim.update({
                     "status": "UNAVAILABLE",
-                    "error": f"Database {db} not provisioned in us-east-1. Fast simulated fallback.",
+                    "error": f"Database {db} not provisioned in {target_region}. Fast simulated fallback.",
                     "fallback_simulated": True
                 })
                 return sim
@@ -474,8 +483,8 @@ def run_benchmark_suite(
                 query_type=query_t,
                 sql=sql,
                 database=db,
-                workgroup=workgroup,
-                region=region,
+                workgroup=target_workgroup,
+                region=target_region,
                 profile=profile,
                 cohort_size=cohort_size
             )
@@ -514,6 +523,9 @@ def run_benchmark_suite(
     }
 
 
+_SCALING_CURVE_CACHE: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+
+
 def generate_cohort_scaling_curve(
     strategies: Optional[List[str]] = None,
     cohort_sizes: Optional[List[int]] = None
@@ -521,11 +533,16 @@ def generate_cohort_scaling_curve(
     """
     Computes composite latency across standard cohort sample sizes
     [10, 50, 100, 250, 500, 1000, 2500] for direct cross-cohort scaling comparison.
+    Results are memoized to avoid redundant recomputations.
     """
-    target_strategies = strategies or LAKEHOUSE_STRATEGIES
-    target_sizes = cohort_sizes or [10, 50, 100, 250, 500, 1000, 2500]
-    curve_points = []
+    target_strategies = tuple(strategies or LAKEHOUSE_STRATEGIES)
+    target_sizes = tuple(cohort_sizes or [10, 50, 100, 250, 500, 1000, 2500])
+    cache_key = (str(target_strategies), str(target_sizes))
 
+    if cache_key in _SCALING_CURVE_CACHE:
+        return _SCALING_CURVE_CACHE[cache_key]
+
+    curve_points = []
     for size in target_sizes:
         for strat in target_strategies:
             af = simulate_query_metrics(strat, "allele_frequency", cohort_size=size)
@@ -539,6 +556,8 @@ def generate_cohort_scaling_curve(
                 "mb_scanned": af["mb_scanned"],
                 "cost_usd": af["cost_usd"]
             })
+
+    _SCALING_CURVE_CACHE[cache_key] = curve_points
     return curve_points
 
 

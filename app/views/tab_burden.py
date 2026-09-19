@@ -9,13 +9,51 @@ import plotly.express as px
 import pandas as pd
 
 
+def render_burden_body(
+    df: pd.DataFrame,
+    engine: str,
+    current_gene: str = "APP"
+) -> html.Div:
+    fig = px.bar(
+        df,
+        x="sample_id",
+        y="total_alt_allele_burden",
+        color="sample_id",
+        title=f"Sample-Level Mutation Burden for {current_gene} Locus — Engine: {engine}",
+        labels={"sample_id": "Cohort Sample ID", "total_alt_allele_burden": "Total Alternate Burden"},
+        template="plotly_white"
+    )
+    fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+    return html.Div([
+        dcc.Graph(figure=fig, className="mb-4"),
+        dash_table.DataTable(
+            id=f"burden-table-{engine.lower().replace(' ', '_')}",
+            data=df.to_dict("records"),
+            columns=[{"name": c, "id": c} for c in df.columns],
+            page_size=6,
+            style_table={"overflowX": "auto"},
+            style_header={"backgroundColor": "#f8f9fa", "fontWeight": "bold"},
+            style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
+            style_data_conditional=[
+                {
+                    "if": {"column_id": "engine"},
+                    "fontFamily": "monospace",
+                    "fontWeight": "bold",
+                    "color": "#0d6efd"
+                }
+            ]
+        )
+    ])
+
+
 def render_burden_tab(
     df: pd.DataFrame,
     meta: Dict[str, Any],
     engine: str,
     offline: bool,
     mode_badge: dbc.Badge,
-    engine_id: str
+    engine_id: str,
+    current_gene: str = "APP"
 ) -> dbc.Card:
     if meta.get("error"):
         return dbc.Alert([
@@ -31,40 +69,38 @@ def render_burden_tab(
         cols = ["engine"] + [c for c in df.columns if c != "engine"]
         df = df[cols]
 
-    fig = px.bar(
-        df,
-        x="sample_id",
-        y="total_alt_allele_burden",
-        color="sample_id",
-        title=f"Sample-Level Mutation Burden for APP Locus — Engine: {engine}",
-        labels={"sample_id": "Cohort Sample ID", "total_alt_allele_burden": "Total Alternate Burden"},
-        template="plotly_white"
-    )
-    fig.update_layout(margin=dict(l=20, r=20, t=40, b=20))
     return dbc.Card([
         dbc.CardHeader([
-            html.Span("Gene Burden Rollup Analysis", className="fw-bold me-2"),
-            mode_badge,
-            dbc.Badge(f"Engine: {engine}", color="info", className="float-end")
+            dbc.Row([
+                dbc.Col([
+                    html.Span("Gene Burden Rollup Analysis", className="fw-bold me-2 fs-5"),
+                    mode_badge
+                ], lg=6, md=12, className="d-flex align-items-center mb-2 mb-lg-0"),
+                dbc.Col([
+                    html.Div([
+                        html.Label("Target Gene:", className="small text-muted fw-bold me-2 mb-0 align-middle"),
+                        html.Div([
+                            dcc.Dropdown(
+                                id="burden-gene-select",
+                                options=[
+                                    {"label": "🧬 APP (Alzheimer's)", "value": "APP"},
+                                    {"label": "🧬 SOD1 (ALS)", "value": "SOD1"},
+                                    {"label": "🧬 BRCA1 (Cancer)", "value": "BRCA1"}
+                                ],
+                                value=current_gene,
+                                clearable=False,
+                                className="small"
+                            )
+                        ], style={"width": "190px"}),
+                        dbc.Badge(f"Engine: {engine}", color="info", className="p-2 ms-2")
+                    ], className="d-flex align-items-center justify-content-lg-end justify-content-start flex-wrap gap-1")
+                ], lg=6, md=12)
+            ], className="align-items-center")
         ], className="bg-white border-bottom py-3"),
         dbc.CardBody([
-            dcc.Graph(figure=fig, className="mb-4"),
-            dash_table.DataTable(
-                id=f"burden-table-{engine.lower().replace(' ', '_')}",
-                data=df.to_dict("records"),
-                columns=[{"name": c, "id": c} for c in df.columns],
-                page_size=6,
-                style_table={"overflowX": "auto"},
-                style_header={"backgroundColor": "#f8f9fa", "fontWeight": "bold"},
-                style_cell={"textAlign": "left", "padding": "10px", "fontSize": "13px"},
-                style_data_conditional=[
-                    {
-                        "if": {"column_id": "engine"},
-                        "fontFamily": "monospace",
-                        "fontWeight": "bold",
-                        "color": "#0d6efd"
-                    }
-                ]
+            html.Div(
+                id="burden-body-container",
+                children=render_burden_body(df, engine, current_gene)
             )
         ])
     ], className="shadow-sm border-0")

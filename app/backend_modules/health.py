@@ -4,6 +4,7 @@ Conforms to IETF draft-invalle-health-check-01 specification.
 """
 
 import datetime
+import os
 import time
 from typing import Any, Dict, List, Optional
 
@@ -61,10 +62,11 @@ class HealthChecker:
         # For deployed / active engines
         target_res = f"{db_name}.{tbl_name}"
         deploy_status = "ACTIVE"
+        aws_region = os.environ.get("AWS_REGION", "us-east-1")
         if "RDS" in canonical_name or engine_id == "rds_postgres":
-            target_res = "genomics-rds-dev.us-east-1.rds.amazonaws.com"
+            target_res = os.environ.get("RDS_ENDPOINT", f"genomics-rds-dev.{aws_region}.rds.amazonaws.com")
         elif "Aurora" in canonical_name or engine_id == "aurora_postgres":
-            target_res = "hls-variant-store-aurora-dev.cluster.us-east-1"
+            target_res = os.environ.get("AURORA_ENDPOINT", f"hls-variant-store-aurora-dev.cluster.{aws_region}.rds.amazonaws.com")
 
         latency_ms = round((time.time() - start_time) * 1000.0 + 1.2, 2)
         return {

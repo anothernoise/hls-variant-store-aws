@@ -31,7 +31,9 @@ from components import create_navbar, create_sidebar
 from views import (
     render_af_tab,
     render_carriers_tab,
+    render_carriers_body,
     render_burden_tab,
+    render_burden_body,
     render_omop_tab,
     render_benchmarks_tab,
     build_benchmarks_body,
@@ -73,6 +75,15 @@ content = html.Div([
 # -----------------------------------------------------------------------------
 app.layout = dbc.Container([
     navbar,
+    dbc.Toast(
+        id="app-notification-toast",
+        header="Platform Status",
+        icon="info",
+        is_open=False,
+        dismissable=True,
+        duration=4000,
+        style={"position": "fixed", "top": 20, "right": 20, "zIndex": 9999, "minWidth": "280px"}
+    ),
     dbc.Row([
         dbc.Col(sidebar, md=4, lg=3, className="mb-4"),
         dbc.Col(content, md=8, lg=9, className="mb-4")
@@ -88,11 +99,14 @@ app.layout = dbc.Container([
 
 
 # -----------------------------------------------------------------------------
-# Callback: Mode Status Indicator (Navbar & Sidebar)
+# Callback: Mode Status Indicator & Toast Notification (Navbar & Sidebar)
 # -----------------------------------------------------------------------------
 @callback(
     [Output("mode-status-badge", "children"),
-     Output("sidebar-mode-indicator", "children")],
+     Output("sidebar-mode-indicator", "children"),
+     Output("app-notification-toast", "is_open"),
+     Output("app-notification-toast", "children"),
+     Output("app-notification-toast", "icon")],
     Input("online-offline-switch", "value")
 )
 def update_mode_status_badge(is_online: bool):
@@ -107,6 +121,8 @@ def update_mode_status_badge(is_online: bool):
             color="success",
             className="w-100 py-2 text-center shadow-sm"
         )
+        toast_msg = "Connected to Live AWS Cloud Services (us-east-1). Direct Lakehouse queries active."
+        toast_icon = "success"
     else:
         nav_badge = dbc.Badge(
             [html.I(className="bi bi-laptop me-1"), "Offline Demo Mode"],
@@ -118,7 +134,9 @@ def update_mode_status_badge(is_online: bool):
             color="warning",
             className="w-100 py-2 text-center text-dark shadow-sm"
         )
-    return nav_badge, sidebar_badge
+        toast_msg = "Offline Simulation Mode enabled. Zero-cost synthetic telemetry and deterministic queries."
+        toast_icon = "warning"
+    return nav_badge, sidebar_badge, True, toast_msg, toast_icon
 
 
 # -----------------------------------------------------------------------------
@@ -253,6 +271,9 @@ def update_cohort_dataset_context(engine: str, is_online: bool, active_tab: str,
         ])
         engine_str = f"{engine} (Mock Simulation)"
 
+    if active_tab == "tab-benchmarks":
+        engine_str = "All 4 Lakehouse Architectures (Cross-Engine Matrix)"
+
     return dbc.ListGroup([
         dbc.ListGroupItem([
             html.Small("Dataset Origin:", className="text-muted d-block"),
@@ -373,44 +394,120 @@ def render_tab_content(active_tab: str, engine: str, is_online: bool, refresh_cl
 
 
 # -----------------------------------------------------------------------------
-# Callback: Update Raw Store Data Explorer Body
+# Callbacks: Interactive Clinical Gene Selectors (Carriers & Burden)
 # -----------------------------------------------------------------------------
 @callback(
-    Output("raw-explorer-body", "children"),
+    Output("carriers-body-container", "children"),
+    Input("carrier-gene-select", "value"),
+    [State("engine-dropdown", "value"),
+     State("online-offline-switch", "value")],
+    prevent_initial_call=True
+)
+def update_carriers_gene(gene: Optional[str], engine: Optional[str], is_online: bool):
+    current_gene = gene or "APP"
+    target_engine = engine or "Amazon S3 Tables"
+    offline = not is_online
+    config = backend.get_engine_config(target_engine)
+    engine_id = config.get("id", target_engine.lower().replace(" ", "_"))
+    df, meta = api_client.get_pathogenic_carriers(target_engine, gene=current_gene, offline=offline)
+    if not df.empty:
+        if "engine" not in df.columns:
+            df["engine"] = "mock_data" if offline else engine_id
+        cols = ["engine"] + [c for c in df.columns if c != "engine"]
+        df = df[cols]
+    return render_carriers_body(df, target_engine, current_gene=current_gene)
+
+
+@callback(
+    Output("burden-body-container", "children"),
+    Input("burden-gene-select", "value"),
+    [State("engine-dropdown", "value"),
+     State("online-offline-switch", "value")],
+    prevent_initial_call=True
+)
+def update_burden_gene(gene: Optional[str], engine: Optional[str], is_online: bool):
+    current_gene = gene or "APP"
+    target_engine = engine or "Amazon S3 Tables"
+    offline = not is_online
+    config = backend.get_engine_config(target_engine)
+    engine_id = config.get("id", target_engine.lower().replace(" ", "_"))
+    df, meta = api_client.get_gene_burden(target_engine, gene=current_gene, offline=offline)
+    if not df.empty:
+        if "engine" not in df.columns:
+            df["engine"] = "mock_data" if offline else engine_id
+        cols = ["engine"] + [c for c in df.columns if c != "engine"]
+        df = df[cols]
+    return render_burden_body(df, target_engine, current_gene=current_gene)
+
+
+# -----------------------------------------------------------------------------
+# Callback: Update Raw Store Data Explorer Body (with Client-Side Cache)
+# -----------------------------------------------------------------------------
+@callback(
+    [Output("raw-explorer-body", "children"),
+     Output("raw-store-cache", "data")],
     [Input("engine-dropdown", "value"),
      Input("raw-table-select", "value"),
      Input("raw-chrom-select", "value"),
      Input("raw-sample-select", "value"),
      Input("online-offline-switch", "value"),
-     Input("global-refresh-btn", "n_clicks")]
+     Input("global-refresh-btn", "n_clicks")],
+    [State("raw-store-cache", "data")]
 )
-def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_online, refresh_clicks=0):
+def update_raw_explorer_body(engine, table_name, chromosome, sample_id, is_online, refresh_clicks=0, cache=None):
     offline = not is_online
-    meta = backend.get_store_metadata(engine)
-    df, telemetry, sql = api_client.get_raw_store_data(
-        engine=engine,
-        table_name=table_name or "variants",
-        chromosome=chromosome or "All",
-        sample_id=sample_id or "All",
-        offline=offline
-    )
+    cache = dict(cache or {})
+    target_table = table_name or "variants"
+    cache_key = f"{engine}:{target_table}:{is_online}"
 
+    # Check client-side cache hit for filtering
+    if cache_key in cache and refresh_clicks == 0:
+        base_records = cache[cache_key].get("records", [])
+        base_df = pd.DataFrame(base_records)
+        df = base_df.copy()
+        if not df.empty:
+            if chromosome and chromosome != "All" and "reference_name" in df.columns:
+                df = df[df["reference_name"] == chromosome]
+            if sample_id and sample_id != "All" and "sample_id" in df.columns:
+                df = df[df["sample_id"] == sample_id]
+
+        telemetry = dict(cache[cache_key].get("telemetry", {}))
+        telemetry["rows_retrieved"] = len(df)
+        telemetry["latency_ms"] = 0.5
+        telemetry["cache_hit"] = True
+        sql = cache[cache_key].get("sql", "")
+    else:
+        df, telemetry, sql = api_client.get_raw_store_data(
+            engine=engine,
+            table_name=target_table,
+            chromosome=chromosome or "All",
+            sample_id=sample_id or "All",
+            offline=offline
+        )
+        cache[cache_key] = {
+            "records": df.to_dict("records"),
+            "telemetry": telemetry,
+            "sql": sql
+        }
+
+    meta = backend.get_store_metadata(engine)
     mode_badge = (
         dbc.Badge([html.I(className="bi bi-cloud-check-fill me-1"), "Live AWS"], color="success", className="ms-2")
         if is_online else
         dbc.Badge([html.I(className="bi bi-laptop me-1"), "Offline Sim"], color="warning", className="ms-2 text-dark")
     )
 
-    return render_raw_explorer_body(
+    body = render_raw_explorer_body(
         df=df,
         telemetry=telemetry,
         sql=sql,
         meta=meta,
         engine=engine,
-        table_name=table_name or "variants",
+        table_name=target_table,
         offline=offline,
         mode_badge=mode_badge
     )
+    return body, cache
 
 
 # -----------------------------------------------------------------------------

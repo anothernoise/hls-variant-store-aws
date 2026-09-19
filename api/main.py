@@ -38,12 +38,17 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Enable CORS for local Dash UI or external clients
+# Enable CORS with strict trusted origins for security compliance
+trusted_origins = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:8050,http://127.0.0.1:8050,http://0.0.0.0:8050"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in trusted_origins if origin.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 

@@ -65,6 +65,7 @@ def render_raw_tab_shell(engine: str, mode_badge: dbc.Badge) -> dbc.Card:
             ], align="center")
         ], className="bg-white border-bottom py-3"),
         dbc.CardBody([
+            dcc.Store(id="raw-store-cache", data={}),
             html.Div(id="raw-explorer-body")
         ])
     ], className="shadow-sm border-0")

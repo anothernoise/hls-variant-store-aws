@@ -85,7 +85,7 @@ class TestBackendMetadata(unittest.TestCase):
     def test_get_engine_config(self):
         config = self.backend.get_engine_config("Amazon S3 Tables")
         self.assertEqual(config["name"], "Amazon S3 Tables")
-        self.assertEqual(config["database"], "s3tablescatalog/genomics")
+        self.assertEqual(config["database"], "s3tablescatalog.genomics")
         self.assertIn("architecture", config)
 
     def test_get_raw_store_data_variants(self):

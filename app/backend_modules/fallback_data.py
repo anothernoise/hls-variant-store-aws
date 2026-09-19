@@ -35,23 +35,54 @@ class FallbackDataLoader:
                 pass
 
     @staticmethod
-    def get_fallback_dataframe(query_kind: str) -> pd.DataFrame:
+    @staticmethod
+    def get_fallback_dataframe(query_kind: str, gene: str = "APP") -> pd.DataFrame:
         """Returns deterministic baseline DataFrame for offline demo UI."""
+        safe_gene = (gene or "APP").upper()
+        if safe_gene not in ("APP", "SOD1", "BRCA1"):
+            safe_gene = "APP"
+
         if query_kind == "carriers":
-            return pd.DataFrame([
-                {"sample_id": "NA12878", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "0/1", "dp": "48", "gq": "99", "allele_depth": "24,24", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
-                {"sample_id": "HG002", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "0/1", "dp": "52", "gq": "99", "allele_depth": "27,25", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
-                {"sample_id": "HG003", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "0/1", "dp": "45", "gq": "95", "allele_depth": "22,23", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
-                {"sample_id": "HG004", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "1/1", "dp": "60", "gq": "99", "allele_depth": "0,60", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
-            ])
+            gene_records = {
+                "APP": [
+                    {"sample_id": "NA12878", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "0/1", "dp": "48", "gq": "99", "allele_depth": "24,24", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
+                    {"sample_id": "HG002", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "0/1", "dp": "52", "gq": "99", "allele_depth": "27,25", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
+                    {"sample_id": "HG003", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "0/1", "dp": "45", "gq": "95", "allele_depth": "22,23", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
+                    {"sample_id": "HG004", "reference_name": "chr21", "start": "25891796", "reference_bases": "A", "alternate_bases": "G", "genotype": "1/1", "dp": "60", "gq": "99", "allele_depth": "0,60", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC"},
+                ],
+                "SOD1": [
+                    {"sample_id": "NA12878", "reference_name": "chr21", "start": "31659787", "reference_bases": "C", "alternate_bases": "T", "genotype": "0/1", "dp": "42", "gq": "98", "allele_depth": "20,22", "gene_symbol": "SOD1", "clinical_significance": "PATHOGENIC"},
+                    {"sample_id": "HG003", "reference_name": "chr21", "start": "31659787", "reference_bases": "C", "alternate_bases": "T", "genotype": "0/1", "dp": "50", "gq": "99", "allele_depth": "25,25", "gene_symbol": "SOD1", "clinical_significance": "PATHOGENIC"},
+                    {"sample_id": "HG005", "reference_name": "chr21", "start": "31659787", "reference_bases": "C", "alternate_bases": "T", "genotype": "1/1", "dp": "55", "gq": "99", "allele_depth": "0,55", "gene_symbol": "SOD1", "clinical_significance": "PATHOGENIC"},
+                ],
+                "BRCA1": [
+                    {"sample_id": "HG002", "reference_name": "chr17", "start": "43044295", "reference_bases": "C", "alternate_bases": "T", "genotype": "0/1", "dp": "64", "gq": "99", "allele_depth": "32,32", "gene_symbol": "BRCA1", "clinical_significance": "LIKELY_PATHOGENIC"},
+                    {"sample_id": "HG004", "reference_name": "chr17", "start": "43044295", "reference_bases": "C", "alternate_bases": "T", "genotype": "0/1", "dp": "58", "gq": "96", "allele_depth": "28,30", "gene_symbol": "BRCA1", "clinical_significance": "LIKELY_PATHOGENIC"},
+                ]
+            }
+            return pd.DataFrame(gene_records.get(safe_gene, gene_records["APP"]))
+
         elif query_kind == "burden":
-            return pd.DataFrame([
-                {"sample_id": "NA12878", "gene_symbol": "APP", "distinct_variant_sites": 2, "total_alt_allele_burden": 3},
-                {"sample_id": "HG002", "gene_symbol": "APP", "distinct_variant_sites": 1, "total_alt_allele_burden": 1},
-                {"sample_id": "HG003", "gene_symbol": "APP", "distinct_variant_sites": 2, "total_alt_allele_burden": 2},
-                {"sample_id": "HG004", "gene_symbol": "APP", "distinct_variant_sites": 3, "total_alt_allele_burden": 4},
-                {"sample_id": "HG005", "gene_symbol": "APP", "distinct_variant_sites": 1, "total_alt_allele_burden": 1},
-            ])
+            burden_records = {
+                "APP": [
+                    {"sample_id": "NA12878", "gene_symbol": "APP", "distinct_variant_sites": 2, "total_alt_allele_burden": 3},
+                    {"sample_id": "HG002", "gene_symbol": "APP", "distinct_variant_sites": 1, "total_alt_allele_burden": 1},
+                    {"sample_id": "HG003", "gene_symbol": "APP", "distinct_variant_sites": 2, "total_alt_allele_burden": 2},
+                    {"sample_id": "HG004", "gene_symbol": "APP", "distinct_variant_sites": 3, "total_alt_allele_burden": 4},
+                    {"sample_id": "HG005", "gene_symbol": "APP", "distinct_variant_sites": 1, "total_alt_allele_burden": 1},
+                ],
+                "SOD1": [
+                    {"sample_id": "NA12878", "gene_symbol": "SOD1", "distinct_variant_sites": 1, "total_alt_allele_burden": 1},
+                    {"sample_id": "HG003", "gene_symbol": "SOD1", "distinct_variant_sites": 2, "total_alt_allele_burden": 3},
+                    {"sample_id": "HG005", "gene_symbol": "SOD1", "distinct_variant_sites": 1, "total_alt_allele_burden": 2},
+                ],
+                "BRCA1": [
+                    {"sample_id": "HG002", "gene_symbol": "BRCA1", "distinct_variant_sites": 2, "total_alt_allele_burden": 2},
+                    {"sample_id": "HG004", "gene_symbol": "BRCA1", "distinct_variant_sites": 1, "total_alt_allele_burden": 1},
+                ]
+            }
+            return pd.DataFrame(burden_records.get(safe_gene, burden_records["APP"]))
+
         elif query_kind == "omop":
             return pd.DataFrame([
                 {"person_id": "P001", "sample_id": "NA12878", "year_of_birth": "1982", "gene_symbol": "APP", "clinical_significance": "PATHOGENIC", "genotype": "0/1", "condition_concept_id": "378419", "condition_start_date": "2021-04-12"},

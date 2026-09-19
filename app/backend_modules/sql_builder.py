@@ -3,10 +3,35 @@ Dialect-aware SQL generator for AWS Genomic Variant Store.
 Supports PostgreSQL (Aurora/RDS) and Presto/Trino (Amazon Athena).
 """
 
+import re
 from typing import Any, Dict
+
+VALID_GENES = {"APP", "SOD1", "BRCA1"}
+IDENTIFIER_REGEX = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+
+def sanitize_identifier(val: str, default: str = "variants", strict: bool = False) -> str:
+    """Sanitizes table or column identifiers to prevent SQL injection."""
+    if not val or not IDENTIFIER_REGEX.match(val):
+        if strict:
+            raise ValueError(f"Invalid SQL identifier: {val}")
+        return default
+    return val
+
+
+def validate_gene(val: str, strict: bool = True) -> str:
+    """Validates gene symbol against permitted genomic targets."""
+    cleaned = (val or "").strip().upper()
+    if cleaned in VALID_GENES:
+        return cleaned
+    if strict:
+        raise ValueError(f"Invalid gene target '{val}'. Allowed targets: {sorted(list(VALID_GENES))}")
+    return "APP"
 
 
 class SqlBuilder:
+    validate_gene = staticmethod(validate_gene)
+    sanitize_identifier = staticmethod(sanitize_identifier)
     @staticmethod
     def build_engine_sql(
         engine_config: Dict[str, Any],
@@ -16,8 +41,9 @@ class SqlBuilder:
     ) -> str:
         """Generates dialect-accurate SQL targeting the specific backend engine and database."""
         db_name = engine_config.get("database", "genomics_custom_iceberg")
-        tbl_name = engine_config.get("table_name", "variants")
+        tbl_name = sanitize_identifier(engine_config.get("table_name", "variants"), default="variants")
         engine_id = engine_config.get("id", engine_name.lower().replace(" ", "_"))
+        safe_gene = validate_gene(gene)
 
         is_postgres = "PostgreSQL" in engine_name or "postgres" in db_name.lower()
 
@@ -52,7 +78,7 @@ class SqlBuilder:
                     f"SUM(CASE WHEN v.genotype = '0/1' THEN 1 WHEN v.genotype = '1/1' THEN 2 ELSE 0 END) AS total_alt_allele_burden "
                     f"FROM variants v "
                     f"WHERE v.reference_name = 'chr21' AND v.genotype IN ('0/1', '1/1') "
-                    f"AND v.attributes->>'gene' = '{gene}' "
+                    f"AND v.attributes->>'gene' = '{safe_gene}' "
                     f"GROUP BY v.sample_id, v.attributes->>'gene';"
                 )
             else:  # omop
@@ -72,10 +98,15 @@ class SqlBuilder:
                 )
 
         # Presto/Trino (Amazon Athena) engines
+        # Cleanly resolve S3 Tables and Athena catalogs
         if "/" in db_name:
-            table_ref = f'"{db_name}".{tbl_name}'
+            # S3 Tables / custom namespace syntax
+            parts = [sanitize_identifier(p) for p in db_name.split("/") if p]
+            clean_db = ".".join(parts)
+            table_ref = f"{clean_db}.{tbl_name}"
         else:
-            table_ref = f"{db_name}.{tbl_name}"
+            clean_db = sanitize_identifier(db_name, default="genomics_custom_iceberg")
+            table_ref = f"{clean_db}.{tbl_name}"
 
         if query_kind == "af":
             return (
@@ -107,7 +138,7 @@ class SqlBuilder:
                 f"SUM(CASE WHEN v.genotype = '0/1' THEN 1 WHEN v.genotype = '1/1' THEN 2 ELSE 0 END) AS total_alt_allele_burden "
                 f"FROM {table_ref} v "
                 f"WHERE v.reference_name = 'chr21' AND v.genotype IN ('0/1', '1/1') "
-                f"AND json_extract_scalar(v.attributes, '$.gene') = '{gene}' "
+                f"AND json_extract_scalar(v.attributes, '$.gene') = '{safe_gene}' "
                 f"GROUP BY v.sample_id, json_extract_scalar(v.attributes, '$.gene');"
             )
         else:  # omop

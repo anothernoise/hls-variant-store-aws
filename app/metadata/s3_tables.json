@@ -2,7 +2,7 @@
   "id": "s3_tables",
   "name": "Amazon S3 Tables",
   "display_order": 1,
-  "database": "s3tablescatalog/genomics",
+  "database": "s3tablescatalog.genomics",
   "table_name": "variants",
   "architecture": {
     "Engine Class": "Managed Lakehouse (Zero-Ops)",

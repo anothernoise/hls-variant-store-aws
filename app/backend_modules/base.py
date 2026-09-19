@@ -25,6 +25,7 @@ from .store_explorer import StoreExplorerService
 
 
 class VariantStoreBackend:
+    _instance: Optional["VariantStoreBackend"] = None
     ENGINE_CONFIGS: Dict[str, Dict[str, Any]] = load_all_engine_metadata()
     SUPPORTED_ENGINES: List[str] = get_supported_engines() or [
         "Amazon S3 Tables",
@@ -36,11 +37,24 @@ class VariantStoreBackend:
         "AWS HealthOmics Variant Store"
     ]
 
-    def __init__(self, default_workgroup: str = "hls-variant-store-dev", offline_mode: bool = False):
-        self.workgroup = default_workgroup
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self, default_workgroup: Optional[str] = None, offline_mode: bool = False):
+        if getattr(self, "_initialized", False):
+            if default_workgroup:
+                self.workgroup = default_workgroup
+            self.offline_mode = offline_mode
+            return
+
+        self.workgroup = default_workgroup or os.environ.get("ATHENA_WORKGROUP", "hls-variant-store-dev")
         self.offline_mode = offline_mode
-        self.athena_client = AthenaClient(workgroup=default_workgroup)
+        self.athena_client = AthenaClient(workgroup=self.workgroup)
         self.fallback_loader = FallbackDataLoader(project_root=PROJECT_ROOT)
+        self._initialized = True
 
     @property
     def person_df(self) -> pd.DataFrame:
@@ -75,10 +89,13 @@ class VariantStoreBackend:
         sql: str,
         database: str = "genomics_custom_iceberg",
         query_kind: str = "af",
-        offline: Optional[bool] = None
+        offline: Optional[bool] = None,
+        gene: str = "APP"
     ) -> Tuple[pd.DataFrame, float, int, str]:
         """Execute a live SQL query via Athena, returning (DataFrame, engine_ms, scanned_bytes, mode)."""
         is_offline = self.offline_mode if offline is None else offline
+        if is_offline:
+            return FallbackDataLoader.get_fallback_dataframe(query_kind, gene=gene), 18.5, 0, "offline"
         return self.athena_client.run_athena_sql(
             sql=sql,
             database=database,
@@ -137,7 +154,8 @@ class VariantStoreBackend:
             sql=sql,
             database=db_name if "/" not in db_name else "default",
             query_kind="carriers",
-            offline=is_offline
+            offline=is_offline,
+            gene=gene
         )
 
         if not df.empty:
@@ -168,7 +186,8 @@ class VariantStoreBackend:
             sql=sql,
             database=db_name if "/" not in db_name else "default",
             query_kind="burden",
-            offline=is_offline
+            offline=is_offline,
+            gene=gene
         )
 
         telemetry = {

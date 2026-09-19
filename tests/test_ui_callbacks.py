@@ -143,6 +143,84 @@ class TestUICallbacks(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn("10 Samples", str(result))
         self.assertIn("live", str(status_badge))
+    def test_update_cohort_dataset_context_benchmarks_matrix(self):
+        from app.app import update_cohort_dataset_context
+        context_list = update_cohort_dataset_context(
+            engine="Amazon S3 Tables",
+            is_online=False,
+            active_tab="tab-benchmarks",
+            refresh_clicks=0
+        )
+        context_str = str(context_list)
+        self.assertIn("All 4 Lakehouse Architectures (Cross-Engine Matrix)", context_str)
+        self.assertIn("Multi-Locus Cross-Engine", context_str)
+
+    def test_update_carriers_gene_callback(self):
+        from app.app import update_carriers_gene
+        body_sod1 = update_carriers_gene("SOD1", "Amazon S3 Tables", False)
+        self.assertIsNotNone(body_sod1)
+        sod1_str = str(body_sod1)
+        self.assertIn("SOD1", sod1_str)
+        self.assertIn("Amyotrophic Lateral Sclerosis", sod1_str)
+
+        body_brca1 = update_carriers_gene("BRCA1", "Custom S3 + Iceberg", False)
+        self.assertIsNotNone(body_brca1)
+        brca1_str = str(body_brca1)
+        self.assertIn("BRCA1", brca1_str)
+        self.assertIn("Hereditary Breast", brca1_str)
+
+    def test_update_burden_gene_callback(self):
+        from app.app import update_burden_gene
+        body_sod1 = update_burden_gene("SOD1", "Delta Lake on S3", False)
+        self.assertIsNotNone(body_sod1)
+        sod1_str = str(body_sod1)
+        self.assertIn("SOD1", sod1_str)
+
+        body_brca1 = update_burden_gene("BRCA1", "Hail VDS (Spark)", False)
+        self.assertIsNotNone(body_brca1)
+        brca1_str = str(body_brca1)
+        self.assertIn("BRCA1", brca1_str)
+
+    def test_update_raw_explorer_body_cache(self):
+        from app.app import update_raw_explorer_body
+        # Initial call (cache populate)
+        body1, cache1 = update_raw_explorer_body(
+            engine="Amazon S3 Tables",
+            table_name="variants",
+            chromosome="All",
+            sample_id="All",
+            is_online=False,
+            refresh_clicks=0,
+            cache={}
+        )
+        self.assertIsNotNone(body1)
+        self.assertIn("Amazon S3 Tables:variants:False", cache1)
+
+        # Subsequent call with filter using cached data
+        body2, cache2 = update_raw_explorer_body(
+            engine="Amazon S3 Tables",
+            table_name="variants",
+            chromosome="chr21",
+            sample_id="sample_001",
+            is_online=False,
+            refresh_clicks=0,
+            cache=cache1
+        )
+        self.assertIsNotNone(body2)
+        body2_str = str(body2)
+        self.assertIn("mock_data.variants", body2_str)
+
+    def test_update_mode_status_badge_toast(self):
+        from app.app import update_mode_status_badge
+        nav_b, side_b, is_open, msg, icon = update_mode_status_badge(True)
+        self.assertTrue(is_open)
+        self.assertEqual(icon, "success")
+        self.assertIn("Connected to Live AWS", msg)
+
+        nav_b_off, side_b_off, is_open_off, msg_off, icon_off = update_mode_status_badge(False)
+        self.assertTrue(is_open_off)
+        self.assertEqual(icon_off, "warning")
+        self.assertIn("Offline Simulation Mode", msg_off)
 
 
 if __name__ == "__main__":
